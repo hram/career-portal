@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Создать резюме · Career Portal{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <p class="eyebrow">Резюме</p>
+    <h1>Создать резюме под вакансию</h1>
+  </section>
+
+  <section class="card generate-panel">
+    <div class="panel-header">
+      <div>
+        <h2>Параметры генерации</h2>
+        <p class="field-hint">Агент: {{ selected_agent }}</p>
+      </div>
+      <a class="btn btn-ghost" href="/settings">Настройки агента</a>
+    </div>
+
+    <form id="generate-form" class="generate-form" method="post" action="/generate">
+      <label>
+        <span>Роль *</span>
+        <select name="template_id" required {% if not roles %}disabled{% endif %}>
+          {% for role in roles %}
+            <option value="{{ role.id }}" {% if selected_template_id == role.id %}selected{% endif %}>
+              {{ role.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <div class="form-grid">
+        <label>
+          <span>Название компании</span>
+          <input type="text" name="company_name" value="{{ values.company_name or '' }}" placeholder="Яндекс">
+        </label>
+
+        <label>
+          <span>Ссылка на вакансию</span>
+          <input type="url" name="vacancy_url" value="{{ values.vacancy_url or '' }}" placeholder="https://...">
+        </label>
+      </div>
+
+      <label>
+        <span>Текст вакансии *</span>
+        <textarea name="vacancy_text" class="vacancy-textarea" required placeholder="Вставь полный текст вакансии: обязанности, требования, стек">{{ values.vacancy_text or "" }}</textarea>
+      </label>
+
+      <div class="generate-loading" id="generate-loading" hidden>
+        <strong>Агент пишет резюме под эту вакансию...</strong>
+        <span>Подбираю ключевые слова, структурирую опыт и проверяю, что факты есть в базе знаний.</span>
+      </div>
+
+      <div class="form-actions split-actions">
+        <button class="btn btn-primary" type="submit" {% if not roles %}disabled{% endif %}>Создать резюме</button>
+        <a class="btn btn-ghost" href="/resumes">Мои резюме</a>
+      </div>
+    </form>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    const generateForm = document.getElementById("generate-form");
+    const generateLoading = document.getElementById("generate-loading");
+    generateForm?.addEventListener("submit", () => {
+      generateLoading.hidden = false;
+      generateForm.querySelectorAll("button[type='submit']").forEach((button) => {
+        button.disabled = true;
+        button.textContent = "Генерирую...";
+      });
+    });
+  </script>
+{% endblock %}

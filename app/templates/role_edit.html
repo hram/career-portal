@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}{{ role.name }} · Career Portal{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <p class="eyebrow">Роли</p>
+    <h1>{{ role.name }}</h1>
+  </section>
+
+  <section class="card role-edit-panel">
+    <form method="post" action="/roles/{{ role.id }}">
+      <label>
+        <span>Название роли *</span>
+        <input type="text" name="name" value="{{ role.name }}" required>
+      </label>
+
+      <label>
+        <span>Описание</span>
+        <textarea name="description">{{ role.description or "" }}</textarea>
+      </label>
+
+      <label>
+        <span>На что делать акцент *</span>
+        <textarea name="focus_areas" required>{{ role.focus_areas or "" }}</textarea>
+      </label>
+
+      <label>
+        <span>Тон резюме</span>
+        <select name="tone">
+          {% for tone in ["технический", "управленческий", "смешанный"] %}
+            <option value="{{ tone }}" {% if (role.tone or "смешанный") == tone %}selected{% endif %}>{{ tone }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <div class="form-actions split-actions">
+        <button class="btn btn-primary" type="submit">Сохранить</button>
+        <a class="btn btn-ghost" href="/generate?template_id={{ role.id }}">Создать резюме</a>
+        <a class="btn btn-ghost" href="/roles">Назад к ролям</a>
+      </div>
+    </form>
+  </section>
+{% endblock %}

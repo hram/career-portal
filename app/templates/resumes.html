@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Мои резюме · Career Portal{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <p class="eyebrow">Резюме</p>
+    <h1>Мои резюме</h1>
+  </section>
+
+  <section class="resumes-list">
+    {% for resume in resumes %}
+      <article class="card resume-card">
+        <div class="resume-card-main">
+          <h2>{{ resume.title }}</h2>
+          <p class="muted-line">
+            {{ resume.template.name if resume.template else "Роль удалена" }}
+            {% if resume.company_name %} · {{ resume.company_name }}{% endif %}
+            · {{ resume.created_at.strftime("%d.%m.%Y %H:%M") if resume.created_at else "" }}
+          </p>
+        </div>
+        <a class="btn btn-primary" href="/resumes/{{ resume.id }}">Открыть</a>
+        <a class="btn btn-ghost" href="/resumes/{{ resume.id }}/download">Скачать .md</a>
+        <button class="btn btn-danger" type="button" onclick="confirmDelete('/resumes/{{ resume.id }}', {{ resume.title | tojson }})">Удалить</button>
+      </article>
+    {% else %}
+      <div class="card empty-state">
+        <h2>Сохранённых резюме пока нет</h2>
+        <p>Создай первое резюме под конкретную вакансию.</p>
+        <a class="btn btn-primary" href="/generate">Создать резюме</a>
+      </div>
+    {% endfor %}
+  </section>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Настройки · Career Portal{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <p class="eyebrow">Система</p>
+    <h1>Настройки</h1>
+  </section>
+
+  <section class="card settings-panel">
+    <form method="post" action="/settings">
+      <label>
+        ИИ-агент для импорта резюме
+        <select name="ai_agent">
+          {% for agent_id, agent_name in agents.items() %}
+            <option value="{{ agent_id }}" {% if selected_agent == agent_id %}selected{% endif %}>{{ agent_name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <p class="muted-line">
+        Импорт использует выбранный агент в едином pipeline: быстрый скелет резюме, затем детализация каждого места работы.
+      </p>
+
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">Сохранить</button>
+        <a class="btn btn-ghost" href="/upload">К загрузке резюме</a>
+      </div>
+    </form>
+  </section>
+{% endblock %}

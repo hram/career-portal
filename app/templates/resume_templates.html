@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Роли · Career Portal{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <p class="eyebrow">Резюме</p>
+    <h1>Роли</h1>
+  </section>
+
+  <section class="card add-role-panel">
+    <details>
+      <summary class="btn btn-primary">+ Добавить роль</summary>
+      <form class="add-role-form" method="post" action="/roles">
+        <label>
+          <span>Название роли *</span>
+          <input type="text" name="name" placeholder="Лид бэкенд разработки" required>
+        </label>
+
+        <label>
+          <span>Описание</span>
+          <textarea name="description" placeholder="Пара слов: для каких вакансий и какого позиционирования"></textarea>
+        </label>
+
+        <label>
+          <span>На что делать акцент *</span>
+          <textarea name="focus_areas" placeholder="Что выводить вперёд: архитектура, найм, процессы, Kotlin, CI/CD..." required></textarea>
+        </label>
+
+        <label>
+          <span>Тон резюме</span>
+          <select name="tone">
+            <option value="технический">технический</option>
+            <option value="управленческий">управленческий</option>
+            <option value="смешанный" selected>смешанный</option>
+          </select>
+        </label>
+
+        <button class="btn btn-primary" type="submit">Создать роль</button>
+      </form>
+    </details>
+  </section>
+
+  <section class="roles-grid">
+    {% for role in roles %}
+      <article class="card role-card">
+        <div class="role-card-header">
+          <h2>🎭 {{ role.name }}</h2>
+          {% if role.is_default %}
+            <span class="role-badge">стартовая</span>
+          {% endif %}
+        </div>
+
+        {% if role.description %}
+          <p>{{ role.description }}</p>
+        {% endif %}
+
+        <div class="role-meta">
+          <span>Акценты</span>
+          <p>{{ role.focus_areas or "не указано" }}</p>
+        </div>
+
+        <div class="role-meta">
+          <span>Тон</span>
+          <p>{{ role.tone or "смешанный" }}</p>
+        </div>
+
+        <div class="role-actions">
+          <a class="btn btn-ghost" href="/roles/{{ role.id }}/edit">Редактировать</a>
+          <a class="btn btn-primary" href="/generate?template_id={{ role.id }}">Создать резюме</a>
+          <button class="btn btn-danger" type="button" onclick="confirmDelete('/roles/{{ role.id }}', {{ role.name | tojson }})">Удалить</button>
+        </div>
+      </article>
+    {% else %}
+      <div class="card empty-state">
+        <h2>Ролей пока нет</h2>
+        <p>Создай первую роль, чтобы смотреть на одну базу знаний через нужный карьерный фокус.</p>
+      </div>
+    {% endfor %}
+  </section>
+{% endblock %}

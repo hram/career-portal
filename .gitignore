@@ -1,0 +1,15 @@
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.env
+*.db
+*.sqlite
+*.sqlite3
+career_portal.db
+uploads/*
+!uploads/.gitkeep
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.DS_Store

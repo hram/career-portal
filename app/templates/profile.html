@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} · Career Portal{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <p class="eyebrow">База знаний</p>
+    <h1>{{ page_title }}</h1>
+    {% if contact_warning %}
+      <div class="inline-warning">Добавь контакты — они попадут в резюме</div>
+    {% endif %}
+  </section>
+
+  <form class="profile-form" method="post" action="/profile">
+    <section class="card profile-panel">
+      <div class="panel-header">
+        <h2>Личные данные</h2>
+      </div>
+
+      <label>
+        <span>Имя</span>
+        <input
+          class="profile-name-input"
+          type="text"
+          name="full_name"
+          value="{{ profile.full_name or '' }}"
+          placeholder="Имя Фамилия"
+          autocomplete="name"
+        >
+      </label>
+
+      <div class="form-grid">
+        <label>
+          <span>Email</span>
+          <input type="email" name="email" value="{{ profile.email or '' }}" autocomplete="email">
+        </label>
+        <label>
+          <span>Телефон</span>
+          <input type="tel" name="phone" value="{{ profile.phone or '' }}" autocomplete="tel">
+        </label>
+      </div>
+
+      <label>
+        <span>Город</span>
+        <input type="text" name="location" value="{{ profile.location or '' }}" autocomplete="address-level2">
+      </label>
+
+      <label>
+        <span>LinkedIn URL</span>
+        <input type="url" name="linkedin_url" value="{{ profile.linkedin_url or '' }}" placeholder="https://linkedin.com/in/...">
+      </label>
+
+      <label>
+        <span>GitHub URL</span>
+        <input type="url" name="github_url" value="{{ profile.github_url or '' }}" placeholder="https://github.com/...">
+      </label>
+
+      <label>
+        <span>Telegram</span>
+        <input type="text" name="telegram" value="{{ profile.telegram or '' }}" placeholder="@username">
+      </label>
+
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">Сохранить</button>
+      </div>
+    </section>
+
+    <section class="card profile-panel profile-summary-panel">
+      <div class="panel-header">
+        <h2>О себе</h2>
+        <span id="autosave-status" class="autosave-status">Автосохранение</span>
+      </div>
+
+      <label>
+        <span>Свободное описание</span>
+        <textarea
+          id="summary_raw"
+          name="summary_raw"
+          placeholder='Пиши как угодно. Кто ты, чего хочешь, что тебя отличает. Это не для резюме — это сырые данные для ИИ. Например: "10 лет в Android, последние 3 года тимлид, устал от корпораций, хочу в продуктовую команду до 50 человек, не готов к полному remote..."'
+        >{{ profile.summary_raw or '' }}</textarea>
+      </label>
+      <p class="field-hint">Это поле только для тебя. ИИ-агент будет использовать эти данные при генерации резюме.</p>
+    </section>
+  </form>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    const summary = document.getElementById("summary_raw");
+    const statusEl = document.getElementById("autosave-status");
+    let autosaveTimer;
+
+    function setAutosaveStatus(text, state) {
+      statusEl.textContent = text;
+      statusEl.dataset.state = state;
+    }
+
+    async function autosaveSummary() {
+      const data = new FormData();
+      data.append("summary_raw", summary.value);
+
+      setAutosaveStatus("Сохраняю", "saving");
+      const response = await fetch("/profile", {
+        method: "POST",
+        headers: { "X-Autosave": "summary" },
+        body: data,
+      });
+
+      if (!response.ok) {
+        setAutosaveStatus("Ошибка сохранения", "error");
+        flash("Не удалось автосохранить описание", "error");
+        return;
+      }
+
+      setAutosaveStatus("Сохранено", "saved");
+    }
+
+    summary.addEventListener("input", () => {
+      setAutosaveStatus("Есть изменения", "dirty");
+      window.clearTimeout(autosaveTimer);
+      autosaveTimer = window.setTimeout(autosaveSummary, 2000);
+    });
+  </script>
+{% endblock %}

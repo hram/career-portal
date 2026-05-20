@@ -1,0 +1,440 @@
+{% extends "base.html" %}
+
+{% macro analysis_block(kind, target_id, analysis) %}
+  <section id="analysis-{{ kind }}-{{ target_id }}" class="analysis-block" {% if not analysis %}hidden{% endif %}>
+    <div class="analysis-header">
+      <h3>Последняя проверка</h3>
+      <span class="analysis-meta">
+        {% if analysis %}{{ analysis.agent }} · {{ analysis.created_at }}{% endif %}
+      </span>
+    </div>
+    <div class="analysis-score">
+      <span>Готовность</span>
+      <strong data-analysis-score>{% if analysis %}{{ analysis.result.overall_score }}{% else %}0{% endif %}%</strong>
+    </div>
+    <div class="score-bar small-score-bar">
+      <div data-analysis-score-fill style="width: {% if analysis %}{{ analysis.result.overall_score }}{% else %}0{% endif %}%"></div>
+    </div>
+    <div class="analysis-columns">
+      <div>
+        <h4>Вопросы</h4>
+        <ul data-analysis-questions>
+          {% if analysis and analysis.result.questions %}
+            {% for question in analysis.result.questions %}
+              <li>{{ question.text }}</li>
+            {% endfor %}
+          {% else %}
+            <li class="muted-line">Вопросов пока нет</li>
+          {% endif %}
+        </ul>
+      </div>
+      <div>
+        <h4>Рекомендации</h4>
+        <ul data-analysis-recommendations>
+          {% if analysis and analysis.result.recommendations %}
+            {% for item in analysis.result.recommendations %}
+              <li>{{ item }}</li>
+            {% endfor %}
+          {% else %}
+            <li class="muted-line">Рекомендаций пока нет</li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+    <div class="analysis-tags" data-analysis-missing>
+      {% if analysis and analysis.result.missing_critical %}
+        {% for item in analysis.result.missing_critical %}
+          <span class="analysis-tag">{{ item }}</span>
+        {% endfor %}
+      {% endif %}
+    </div>
+  </section>
+{% endmacro %}
+
+{% block title %}{{ job.company }} · Career Portal{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <p class="eyebrow"><a href="/jobs">Опыт и проекты</a></p>
+    <h1>{{ job.company }}</h1>
+  </section>
+
+  <form id="job-form" class="card job-detail-panel" data-save-url="/jobs/{{ job.id }}">
+    <div class="panel-header">
+      <h2>Место работы</h2>
+      <span id="job-save-status" class="autosave-indicator"></span>
+    </div>
+
+    <div class="form-grid">
+      <label>
+        <span>Компания</span>
+        <input type="text" name="company" value="{{ job.company }}" required>
+      </label>
+      <label>
+        <span>Должность</span>
+        <input type="text" name="position" value="{{ job.position or '' }}" required>
+      </label>
+    </div>
+
+    <div class="form-grid period-grid">
+      <label>
+        <span>Период с</span>
+        <input type="text" name="start_date" value="{{ job.start_date or '' }}" placeholder="март 2021">
+      </label>
+      <label>
+        <span>по</span>
+        <input type="text" name="end_date" value="{{ job.end_date or '' }}" placeholder="май 2025">
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" name="is_current" {% if job.is_current %}checked{% endif %}>
+        <span>по настоящее время</span>
+      </label>
+    </div>
+
+    <label>
+      <span>Город</span>
+      <input type="text" name="location" value="{{ job.location or '' }}">
+    </label>
+
+    <label>
+      <span>Общие заметки</span>
+      <textarea
+        id="job-raw-notes"
+        name="raw_notes"
+        class="autosave-field"
+        data-autosave-url="/jobs/{{ job.id }}"
+        data-autosave-header="raw_notes"
+        data-status-target="job-notes-status"
+        placeholder="Общие заметки про это место работы. Команда, стек, атмосфера, почему ушёл — пиши как угодно"
+      >{{ job.raw_notes or '' }}</textarea>
+    </label>
+    <span id="job-notes-status" class="autosave-indicator"></span>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Сохранить</button>
+    </div>
+  </form>
+
+  <section class="card job-detail-panel analysis-shell">
+    <div class="section-row">
+      <h2>Проверка места работы</h2>
+      <button class="btn btn-primary analysis-run-btn" type="button" data-analysis-kind="job" data-target-id="{{ job.id }}">Проверить место работы</button>
+    </div>
+    <p class="muted-line">Агент проверит это место работы как совокупность проектов: цельность периода, пробелы, метрики, роль и дубли.</p>
+    <div id="analysis-loading-job-{{ job.id }}" class="upload-progress" hidden>Агент проверяет место работы...</div>
+    <div id="analysis-error-job-{{ job.id }}" class="error-text" hidden></div>
+    {{ analysis_block("job", job.id, job_analysis) }}
+  </section>
+
+  <section class="projects-section">
+    <div class="section-row">
+      <h2>Проекты</h2>
+    </div>
+
+    <div id="projects-list" class="projects-list" data-job-id="{{ job.id }}">
+      {% for project in job.projects %}
+        <article class="card project-card" draggable="true" data-project-id="{{ project.id }}">
+          <div class="project-summary">
+            <span class="drag-handle" title="Перетащить">⠿</span>
+            <button class="collapse-toggle" type="button" aria-label="Развернуть проект">▶</button>
+            <div class="project-summary-main">
+              <strong>{{ project.name }}</strong>
+            </div>
+            {% if project.my_role %}
+              <span class="muted-line">{{ project.my_role }}</span>
+            {% endif %}
+            <button class="btn btn-ghost analysis-run-btn" type="button" data-analysis-kind="project" data-target-id="{{ project.id }}">Проверить</button>
+            <button class="btn btn-ghost project-edit-btn" type="button">Изменить</button>
+            <button class="btn btn-danger" type="button" onclick="confirmDelete('/jobs/{{ job.id }}/projects/{{ project.id }}', {{ project.name | tojson }})">✕</button>
+          </div>
+
+          <form class="project-form" data-save-url="/jobs/{{ job.id }}/projects/{{ project.id }}">
+            <div class="panel-header">
+              <h3>Редактирование проекта</h3>
+              <span id="project-status-{{ project.id }}" class="autosave-indicator"></span>
+            </div>
+
+            <label>
+              <span>Название проекта *</span>
+              <input type="text" name="name" value="{{ project.name }}" required>
+            </label>
+
+            <label>
+              <span>Описание</span>
+              <textarea
+                name="raw_description"
+                rows="6"
+                class="autosave-field"
+                data-autosave-url="/jobs/{{ job.id }}/projects/{{ project.id }}"
+                data-autosave-header="raw_description"
+                data-status-target="project-status-{{ project.id }}"
+                placeholder="Здесь можно писать как угодно: что делал, зачем, что сломалось, как починили, что узнал. ИИ сам разберётся."
+              >{{ project.raw_description or '' }}</textarea>
+            </label>
+
+            <label>
+              <span>Стек / технологии</span>
+              <input type="text" name="tech_stack" value="{{ project.tech_stack or '' }}" placeholder="Python, FastAPI, PostgreSQL, Redis, Docker — через запятую или как угодно">
+            </label>
+
+            <label>
+              <span>Результаты и метрики</span>
+              <textarea name="results_raw" placeholder='"ускорили в 2 раза", "запустили на 50к пользователей", "сократили время деплоя с часа до 5 минут"'>{{ project.results_raw or '' }}</textarea>
+            </label>
+
+            <div class="form-grid">
+              <label>
+                <span>Моя роль</span>
+                <input type="text" name="my_role" value="{{ project.my_role or '' }}">
+              </label>
+              <label>
+                <span>Размер команды</span>
+                <input type="text" name="team_size" value="{{ project.team_size or '' }}">
+              </label>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Сохранить</button>
+              <button class="btn btn-ghost project-cancel-btn" type="button">Отмена</button>
+            </div>
+          </form>
+
+          <div id="analysis-loading-project-{{ project.id }}" class="upload-progress project-analysis-status" hidden>Агент проверяет проект...</div>
+          <div id="analysis-error-project-{{ project.id }}" class="error-text project-analysis-status" hidden></div>
+          {{ analysis_block("project", project.id, project_analyses.get(project.id)) }}
+        </article>
+      {% else %}
+        <div class="card empty-state">
+          <h2>Нет проектов для этой компании.</h2>
+          <p>Добавь хотя бы один — или загрузи резюме, ИИ заполнит автоматически.</p>
+        </div>
+      {% endfor %}
+    </div>
+
+    <section class="card add-project-panel">
+      <details>
+        <summary class="btn btn-primary">+ Добавить проект</summary>
+        <form method="post" action="/jobs/{{ job.id }}/projects" class="add-project-form">
+          <label>
+            <span>Название проекта *</span>
+            <input type="text" name="name" required>
+          </label>
+          <label>
+            <span>Описание</span>
+            <textarea name="raw_description" rows="6"></textarea>
+          </label>
+          <label>
+            <span>Стек / технологии</span>
+            <input type="text" name="tech_stack" placeholder="Python, FastAPI, Redis">
+          </label>
+          <div class="form-grid">
+            <label>
+              <span>Моя роль</span>
+              <input type="text" name="my_role">
+            </label>
+            <label>
+              <span>Размер команды</span>
+              <input type="text" name="team_size">
+            </label>
+          </div>
+          <button class="btn btn-primary" type="submit">Добавить проект</button>
+        </form>
+      </details>
+    </section>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    const jobForm = document.getElementById("job-form");
+    const jobSaveStatus = document.getElementById("job-save-status");
+    const projectsList = document.getElementById("projects-list");
+    let draggedProject = null;
+
+    function setStatus(element, text, state) {
+      if (!element) return;
+      element.textContent = text;
+      element.dataset.state = state;
+    }
+
+    jobForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setStatus(jobSaveStatus, "● Сохраняется...", "saving");
+      const response = await fetch(jobForm.dataset.saveUrl, {
+        method: "POST",
+        body: new FormData(jobForm),
+      });
+      if (!response.ok) {
+        setStatus(jobSaveStatus, "Ошибка", "error");
+        flash("Не удалось сохранить место работы", "error");
+        return;
+      }
+      setStatus(jobSaveStatus, "✓ Сохранено", "saved");
+      flash("Место работы сохранено");
+    });
+
+    document.querySelectorAll(".project-card").forEach((card) => {
+      const editButton = card.querySelector(".project-edit-btn");
+      const cancelButton = card.querySelector(".project-cancel-btn");
+      const toggleButton = card.querySelector(".collapse-toggle");
+
+      function toggle(expanded) {
+        card.classList.toggle("expanded", expanded);
+        toggleButton.textContent = expanded ? "▼" : "▶";
+      }
+
+      editButton.addEventListener("click", () => toggle(true));
+      toggleButton.addEventListener("click", () => toggle(!card.classList.contains("expanded")));
+      cancelButton.addEventListener("click", () => toggle(false));
+
+      card.querySelector(".project-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const status = form.querySelector(".autosave-indicator");
+        setStatus(status, "● Сохраняется...", "saving");
+        const response = await fetch(form.dataset.saveUrl, {
+          method: "POST",
+          body: new FormData(form),
+        });
+        if (!response.ok) {
+          setStatus(status, "Ошибка", "error");
+          flash("Не удалось сохранить проект", "error");
+          return;
+        }
+        setStatus(status, "✓ Сохранено", "saved");
+        flash("Проект сохранён");
+      });
+    });
+
+    document.querySelectorAll(".autosave-field").forEach((field) => {
+      let timer;
+      field.addEventListener("input", () => {
+        const status = document.getElementById(field.dataset.statusTarget);
+        setStatus(status, "● Есть изменения", "dirty");
+        window.clearTimeout(timer);
+        timer = window.setTimeout(async () => {
+          const data = new FormData();
+          data.append(field.name, field.value);
+          setStatus(status, "● Сохраняется...", "saving");
+          const response = await fetch(field.dataset.autosaveUrl, {
+            method: "POST",
+            headers: { "X-Autosave": field.dataset.autosaveHeader },
+            body: data,
+          });
+          setStatus(status, response.ok ? "✓ Сохранено" : "Ошибка", response.ok ? "saved" : "error");
+        }, 1500);
+      });
+    });
+
+    projectsList?.addEventListener("dragstart", (event) => {
+      const card = event.target.closest(".project-card");
+      if (!card) return;
+      draggedProject = card;
+      card.classList.add("dragging");
+    });
+
+    projectsList?.addEventListener("dragend", () => {
+      draggedProject?.classList.remove("dragging");
+      draggedProject = null;
+      persistProjectOrder();
+    });
+
+    projectsList?.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      const after = getDragAfterElement(projectsList, event.clientY, ".project-card:not(.dragging)");
+      if (!draggedProject) return;
+      if (after == null) {
+        projectsList.appendChild(draggedProject);
+      } else {
+        projectsList.insertBefore(draggedProject, after);
+      }
+    });
+
+    async function persistProjectOrder() {
+      const payload = [...document.querySelectorAll(".project-card")].map((card, index) => ({
+        id: Number(card.dataset.projectId),
+        sort_order: index + 1,
+      }));
+      if (!payload.length) return;
+      const response = await fetch(`/jobs/${projectsList.dataset.jobId}/projects/reorder`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        flash("Не удалось сохранить порядок проектов", "error");
+      }
+    }
+
+    document.querySelectorAll(".analysis-run-btn").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const kind = button.dataset.analysisKind;
+        const targetId = button.dataset.targetId;
+        const loading = document.getElementById(`analysis-loading-${kind}-${targetId}`);
+        const error = document.getElementById(`analysis-error-${kind}-${targetId}`);
+        button.disabled = true;
+        if (loading) loading.hidden = false;
+        if (error) error.hidden = true;
+
+        try {
+          const response = await fetch(`/agent/analyze/${kind}/${targetId}`, { method: "POST" });
+          const payload = await response.json();
+          if (!response.ok || payload.status !== "ok") {
+            throw new Error(payload.error || "Агент не смог выполнить проверку");
+          }
+          renderAnalysisBlock(kind, targetId, payload.analysis);
+          flash("Проверка сохранена");
+        } catch (err) {
+          if (error) {
+            error.textContent = err.message;
+            error.hidden = false;
+          }
+        } finally {
+          if (loading) loading.hidden = true;
+          button.disabled = false;
+        }
+      });
+    });
+
+    function renderAnalysisBlock(kind, targetId, analysis) {
+      const block = document.getElementById(`analysis-${kind}-${targetId}`);
+      if (!block || !analysis || !analysis.result) return;
+      const result = analysis.result;
+      block.hidden = false;
+      const score = Math.max(0, Math.min(100, Number(result.overall_score || 0)));
+      block.querySelector("[data-analysis-score]").textContent = `${score}%`;
+      block.querySelector("[data-analysis-score-fill]").style.width = `${score}%`;
+      block.querySelector(".analysis-meta").textContent = `${analysis.agent} · ${analysis.created_at || ""}`;
+      renderList(block.querySelector("[data-analysis-questions]"), (result.questions || []).map((item) => item.text || ""), "Вопросов нет");
+      renderList(block.querySelector("[data-analysis-recommendations]"), result.recommendations || [], "Рекомендаций нет");
+      renderTagList(block.querySelector("[data-analysis-missing]"), result.missing_critical || []);
+    }
+
+    function renderList(root, items, emptyText) {
+      root.replaceChildren();
+      const values = items.filter(Boolean);
+      if (!values.length) {
+        const li = document.createElement("li");
+        li.className = "muted-line";
+        li.textContent = emptyText;
+        root.appendChild(li);
+        return;
+      }
+      values.forEach((item) => {
+        const li = document.createElement("li");
+        li.textContent = item;
+        root.appendChild(li);
+      });
+    }
+
+    function renderTagList(root, items) {
+      root.replaceChildren();
+      items.filter(Boolean).forEach((item) => {
+        const tag = document.createElement("span");
+        tag.className = "analysis-tag";
+        tag.textContent = item;
+        root.appendChild(tag);
+      });
+    }
+  </script>
+{% endblock %}

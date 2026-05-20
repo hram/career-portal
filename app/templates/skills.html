@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+
+{% block title %}Навыки и заметки · Career Portal{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <p class="eyebrow">База знаний</p>
+    <h1>Навыки, образование, заметки</h1>
+  </section>
+
+  <section class="knowledge-layout">
+    <section class="card knowledge-panel skills-panel">
+      <div class="panel-header">
+        <h2>Навыки</h2>
+        <span id="skills-autosave-status" class="autosave-status">Автосохранение</span>
+      </div>
+
+      <form id="skills-form" method="post" action="/skills">
+        <label>
+          <span>Сырой список навыков</span>
+          <textarea
+            id="skills-raw"
+            name="raw_dump"
+            placeholder="Сваливай всё сюда как угодно:
+Python Django FastAPI PostgreSQL Redis Docker Kubernetes
+AWS S3 Lambda Android Kotlin Jetpack Compose
+Говорю по-английски (B2), немного немецкий
+Умею вести 1-on-1, опыт найма 20+ человек
+Публичные выступления на конференциях
+..."
+          >{{ skills_text }}</textarea>
+        </label>
+        <p class="field-hint">ИИ-агент сам структурирует навыки при генерации резюме под конкретную роль.</p>
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">Сохранить навыки</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card knowledge-panel">
+      <div class="panel-header">
+        <h2>Образование</h2>
+      </div>
+
+      <div id="education-list" class="knowledge-list">
+        {% for item in education %}
+          <article class="knowledge-item" data-education-id="{{ item.id }}">
+            <div>
+              <h3>{{ item.institution }}</h3>
+              <p>
+                {% if item.degree %}{{ item.degree }}{% endif %}
+                {% if item.field %}{% if item.degree %} · {% endif %}{{ item.field }}{% endif %}
+              </p>
+              <div class="muted-line">
+                {% if item.start_year or item.end_year %}
+                  {{ item.start_year or "?" }} — {{ item.end_year or "?" }}
+                {% endif %}
+                {% if item.raw_notes %}{% if item.start_year or item.end_year %} · {% endif %}{{ item.raw_notes }}{% endif %}
+              </div>
+            </div>
+            <button class="btn btn-danger" type="button" data-delete-education="{{ item.id }}">Удалить</button>
+          </article>
+        {% else %}
+          <div id="education-empty" class="empty-state compact-empty">
+            <h2>Образование пока не добавлено</h2>
+            <p>Добавь вуз, курс или сертификат с датами и контекстом.</p>
+          </div>
+        {% endfor %}
+      </div>
+
+      <form id="education-form" class="inline-create-form" method="post" action="/education">
+        <label>
+          <span>Учебное заведение *</span>
+          <input type="text" name="institution" required>
+        </label>
+        <div class="form-grid">
+          <label>
+            <span>Степень/тип</span>
+            <input type="text" name="degree" placeholder="бакалавр, магистр, курс">
+          </label>
+          <label>
+            <span>Специальность</span>
+            <input type="text" name="field">
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            <span>Год с</span>
+            <input type="text" name="start_year">
+          </label>
+          <label>
+            <span>по</span>
+            <input type="text" name="end_year">
+          </label>
+        </div>
+        <label>
+          <span>Заметки</span>
+          <textarea name="raw_notes" placeholder="не закончил, красный диплом, сильный проект на курсе"></textarea>
+        </label>
+        <button class="btn btn-primary" type="submit">Добавить образование</button>
+      </form>
+    </section>
+
+    <section class="card knowledge-panel">
+      <div class="panel-header">
+        <h2>Прочие заметки</h2>
+      </div>
+
+      <div id="notes-list" class="knowledge-list">
+        {% for item in notes %}
+          <article class="knowledge-item" data-note-id="{{ item.id }}">
+            <div>
+              <div class="note-category">{{ item.category or "другое" }}</div>
+              <h3>{{ item.title }}</h3>
+              {% if item.raw_content %}
+                <p>{{ item.raw_content }}</p>
+              {% endif %}
+            </div>
+            <button class="btn btn-danger" type="button" data-delete-note="{{ item.id }}">Удалить</button>
+          </article>
+        {% else %}
+          <div id="notes-empty" class="empty-state compact-empty">
+            <h2>Заметок пока нет</h2>
+            <p>Сюда удобно складывать сертификаты, доклады, публикации и достижения вне проектов.</p>
+          </div>
+        {% endfor %}
+      </div>
+
+      <form id="note-form" class="inline-create-form" method="post" action="/notes">
+        <div class="form-grid">
+          <label>
+            <span>Категория</span>
+            <select name="category">
+              {% for category in note_categories %}
+                <option value="{{ category }}">{{ category }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            <span>Заголовок *</span>
+            <input type="text" name="title" placeholder="AWS Certified Solutions Architect — 2023" required>
+          </label>
+        </div>
+        <label>
+          <span>Текст</span>
+          <textarea name="raw_content" placeholder="Спикер на Android Conf 2022, доклад про Compose"></textarea>
+        </label>
+        <button class="btn btn-primary" type="submit">Добавить заметку</button>
+      </form>
+    </section>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    const skillsForm = document.getElementById("skills-form");
+    const skillsRaw = document.getElementById("skills-raw");
+    const skillsStatus = document.getElementById("skills-autosave-status");
+    const educationForm = document.getElementById("education-form");
+    const educationList = document.getElementById("education-list");
+    const noteForm = document.getElementById("note-form");
+    const notesList = document.getElementById("notes-list");
+    let skillsTimer;
+
+    function setSkillsStatus(text, state) {
+      skillsStatus.textContent = text;
+      skillsStatus.dataset.state = state;
+    }
+
+    async function saveSkills() {
+      const data = new FormData(skillsForm);
+      setSkillsStatus("Сохраняю", "saving");
+      const response = await fetch("/skills", {
+        method: "POST",
+        body: data,
+      });
+      if (!response.ok) {
+        setSkillsStatus("Ошибка сохранения", "error");
+        flash("Не удалось сохранить навыки", "error");
+        return;
+      }
+      setSkillsStatus("Сохранено", "saved");
+    }
+
+    skillsRaw.addEventListener("input", () => {
+      setSkillsStatus("Есть изменения", "dirty");
+      window.clearTimeout(skillsTimer);
+      skillsTimer = window.setTimeout(saveSkills, 2000);
+    });
+
+    skillsForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      window.clearTimeout(skillsTimer);
+      await saveSkills();
+      flash("Навыки сохранены");
+    });
+
+    educationForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const response = await fetch("/education", {
+        method: "POST",
+        body: new FormData(educationForm),
+      });
+      if (!response.ok) {
+        flash("Не удалось добавить образование", "error");
+        return;
+      }
+      const item = await response.json();
+      document.getElementById("education-empty")?.remove();
+      educationList.prepend(renderEducation(item));
+      educationForm.reset();
+      flash("Образование добавлено");
+    });
+
+    noteForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const response = await fetch("/notes", {
+        method: "POST",
+        body: new FormData(noteForm),
+      });
+      if (!response.ok) {
+        flash("Не удалось добавить заметку", "error");
+        return;
+      }
+      const item = await response.json();
+      document.getElementById("notes-empty")?.remove();
+      notesList.prepend(renderNote(item));
+      noteForm.reset();
+      flash("Заметка добавлена");
+    });
+
+    educationList.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-delete-education]");
+      if (!button) return;
+      await deleteItem(`/education/${button.dataset.deleteEducation}`, button.closest(".knowledge-item"), "Образование удалено");
+    });
+
+    notesList.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-delete-note]");
+      if (!button) return;
+      await deleteItem(`/notes/${button.dataset.deleteNote}`, button.closest(".knowledge-item"), "Заметка удалена");
+    });
+
+    async function deleteItem(url, element, successText) {
+      const response = await fetch(url, { method: "DELETE" });
+      if (!response.ok) {
+        flash("Не удалось удалить запись", "error");
+        return;
+      }
+      element.remove();
+      flash(successText);
+    }
+
+    function renderEducation(item) {
+      const article = document.createElement("article");
+      article.className = "knowledge-item";
+      article.dataset.educationId = item.id;
+      const details = [item.degree, item.field].filter(Boolean).join(" · ");
+      const years = item.start_year || item.end_year ? `${item.start_year || "?"} — ${item.end_year || "?"}` : "";
+      const meta = [years, item.raw_notes].filter(Boolean).join(" · ");
+      article.innerHTML = `
+        <div>
+          <h3></h3>
+          <p></p>
+          <div class="muted-line"></div>
+        </div>
+        <button class="btn btn-danger" type="button" data-delete-education="${item.id}">Удалить</button>
+      `;
+      article.querySelector("h3").textContent = item.institution;
+      article.querySelector("p").textContent = details;
+      article.querySelector(".muted-line").textContent = meta;
+      return article;
+    }
+
+    function renderNote(item) {
+      const article = document.createElement("article");
+      article.className = "knowledge-item";
+      article.dataset.noteId = item.id;
+      article.innerHTML = `
+        <div>
+          <div class="note-category"></div>
+          <h3></h3>
+          <p></p>
+        </div>
+        <button class="btn btn-danger" type="button" data-delete-note="${item.id}">Удалить</button>
+      `;
+      article.querySelector(".note-category").textContent = item.category || "другое";
+      article.querySelector("h3").textContent = item.title;
+      article.querySelector("p").textContent = item.raw_content || "";
+      return article;
+    }
+  </script>
+{% endblock %}

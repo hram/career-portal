@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}{{ resume.title }} · Career Portal{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <p class="eyebrow">Мои резюме</p>
+    <h1>{{ resume.title }}</h1>
+  </section>
+
+  <section class="resume-view-layout">
+    <article class="card resume-document">
+      {{ resume_html }}
+    </article>
+
+    <aside class="card resume-sidebar">
+      <div>
+        <span class="meta-label">Роль</span>
+        <strong>{{ resume.template.name if resume.template else "Роль удалена" }}</strong>
+      </div>
+
+      <div>
+        <span class="meta-label">Компания</span>
+        <strong>{{ resume.company_name or "не указана" }}</strong>
+      </div>
+
+      <div>
+        <span class="meta-label">Создано</span>
+        <strong>{{ resume.created_at.strftime("%d.%m.%Y %H:%M") if resume.created_at else "" }}</strong>
+      </div>
+
+      {% if resume.vacancy_url %}
+        <a class="btn btn-ghost" href="{{ resume.vacancy_url }}" target="_blank" rel="noreferrer">Открыть вакансию</a>
+      {% endif %}
+
+      <button class="btn btn-primary" type="button" data-copy-resume>Скопировать текст</button>
+      <a class="btn btn-ghost" href="/resumes/{{ resume.id }}/download">Скачать .md</a>
+      <a class="btn btn-ghost" href="/generate?template_id={{ resume.template_id or '' }}">Перегенерировать</a>
+      <button class="btn btn-danger" type="button" data-delete-resume>Удалить</button>
+    </aside>
+  </section>
+
+  <textarea id="resume-markdown-source" hidden>{{ resume.result_markdown or "" }}</textarea>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    document.querySelector("[data-copy-resume]")?.addEventListener("click", async () => {
+      const source = document.getElementById("resume-markdown-source");
+      await navigator.clipboard.writeText(source.value);
+      flash("Текст резюме скопирован");
+    });
+
+    document.querySelector("[data-delete-resume]")?.addEventListener("click", async () => {
+      const confirmed = window.confirm({{ resume.title | tojson }} + " удалить?");
+      if (!confirmed) {
+        return;
+      }
+      const response = await fetch("/resumes/{{ resume.id }}", { method: "DELETE" });
+      if (!response.ok) {
+        flash("Не удалось удалить резюме", "error");
+        return;
+      }
+      window.location.href = "/resumes";
+    });
+  </script>
+{% endblock %}

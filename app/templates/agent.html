@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}ИИ-агент · Career Portal{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <p class="eyebrow">Инструменты</p>
+    <h1>ИИ-агент</h1>
+  </section>
+
+  <section class="card agent-panel">
+    <div class="agent-start">
+      <div>
+        <h2>ИИ-агент готов к работе</h2>
+        <p class="muted-line">
+          Агент прочитает профиль, опыт, проекты, навыки, образование и заметки.
+          Сейчас выбран: {{ agents[selected_agent] }}.
+          {% if last_analysis %}
+            Последний результат сохранён ниже.
+          {% endif %}
+        </p>
+      </div>
+      <button id="analyze-button" class="btn btn-primary" type="button">Проверить базу знаний</button>
+    </div>
+
+    <div id="agent-loading" class="agent-loading" hidden>
+      <div class="upload-progress">Агент читает данные...</div>
+    </div>
+
+    <div id="agent-error" class="error-text" hidden></div>
+
+    <div id="agent-result" class="agent-result" hidden>
+      <section class="agent-score">
+        <div class="section-row">
+          <h2>Готовность базы</h2>
+          <strong id="score-value">0%</strong>
+        </div>
+        <div class="score-bar">
+          <div id="score-fill"></div>
+        </div>
+      </section>
+
+      <section class="agent-section">
+        <h2>Нужно добавить</h2>
+        <div id="missing-list" class="tag-list"></div>
+      </section>
+
+      <section class="agent-section">
+        <h2>Вопросы агента</h2>
+        <div id="questions-list" class="agent-questions"></div>
+      </section>
+
+      <section class="agent-section">
+        <h2>Слабые места</h2>
+        <div id="weak-list" class="tag-list"></div>
+      </section>
+
+      <section class="agent-section">
+        <h2>Сильные стороны</h2>
+        <div id="strengths-list" class="tag-list tag-list-success"></div>
+      </section>
+
+      <section class="agent-section">
+        <h2>Что сделать сейчас</h2>
+        <ul id="recommendations-list" class="agent-recommendations"></ul>
+      </section>
+    </div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    const lastAnalysis = {{ last_analysis | tojson }};
+    const button = document.getElementById("analyze-button");
+    const loading = document.getElementById("agent-loading");
+    const errorBox = document.getElementById("agent-error");
+    const resultBox = document.getElementById("agent-result");
+
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      loading.hidden = false;
+      errorBox.hidden = true;
+      resultBox.hidden = true;
+
+      try {
+        const response = await fetch("/agent/analyze", { method: "POST" });
+        const payload = await response.json();
+        if (!response.ok || payload.status !== "ok") {
+          throw new Error(payload.error || "Агент не смог проверить базу");
+        }
+        renderAnalysis(payload.result);
+        resultBox.hidden = false;
+      } catch (error) {
+        errorBox.textContent = error.message;
+        errorBox.hidden = false;
+      } finally {
+        loading.hidden = true;
+        button.disabled = false;
+      }
+    });
+
+    if (lastAnalysis && lastAnalysis.result) {
+      renderAnalysis(lastAnalysis.result);
+      resultBox.hidden = false;
+    }
+
+    function renderAnalysis(result) {
+      const score = Math.max(0, Math.min(100, Number(result.overall_score || 0)));
+      document.getElementById("score-value").textContent = `${score}%`;
+      document.getElementById("score-fill").style.width = `${score}%`;
+
+      renderTags("missing-list", result.missing_critical, "Пробелов не найдено");
+      renderTags("weak-list", result.weak_points, "Слабых мест не найдено");
+      renderTags("strengths-list", result.strengths, "Сильные стороны пока не выделены");
+      renderQuestions(result.questions || []);
+      renderRecommendations(result.recommendations || []);
+    }
+
+    function renderTags(rootId, items, emptyText) {
+      const root = document.getElementById(rootId);
+      root.replaceChildren();
+      if (!items || !items.length) {
+        const empty = document.createElement("span");
+        empty.className = "muted-line";
+        empty.textContent = emptyText;
+        root.appendChild(empty);
+        return;
+      }
+      items.forEach((item) => {
+        const tag = document.createElement("span");
+        tag.className = "analysis-tag";
+        tag.textContent = item;
+        root.appendChild(tag);
+      });
+    }
+
+    function renderQuestions(items) {
+      const root = document.getElementById("questions-list");
+      root.replaceChildren();
+      if (!items.length) {
+        const empty = document.createElement("p");
+        empty.className = "muted-line";
+        empty.textContent = "Вопросов нет";
+        root.appendChild(empty);
+        return;
+      }
+      items.forEach((item) => {
+        const card = document.createElement("article");
+        card.className = "agent-question";
+        const text = document.createElement("p");
+        text.textContent = item.text || "";
+        const link = document.createElement("a");
+        link.className = "btn btn-ghost";
+        link.href = item.target_url || "/jobs";
+        link.textContent = item.target_label || "Перейти";
+        card.append(text, link);
+        root.appendChild(card);
+      });
+    }
+
+    function renderRecommendations(items) {
+      const root = document.getElementById("recommendations-list");
+      root.replaceChildren();
+      if (!items.length) {
+        const empty = document.createElement("li");
+        empty.className = "muted-line";
+        empty.textContent = "Рекомендаций нет";
+        root.appendChild(empty);
+        return;
+      }
+      items.forEach((item) => {
+        const li = document.createElement("li");
+        li.textContent = item;
+        root.appendChild(li);
+      });
+    }
+  </script>
+{% endblock %}

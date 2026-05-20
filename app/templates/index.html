@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Дашборд · Career Portal{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <p class="eyebrow">Личная база знаний</p>
+    <h1>Привет! Это твой личный карьерный портал.</h1>
+  </section>
+
+  <section class="stats-grid" aria-label="Статистика базы">
+    <article class="card stat-card">
+      <span class="stat-label">Мест работы в базе</span>
+      <strong class="stat-value">{{ stats.jobs }}</strong>
+    </article>
+    <article class="card stat-card">
+      <span class="stat-label">Проектов</span>
+      <strong class="stat-value">{{ stats.projects }}</strong>
+    </article>
+    <article class="card stat-card">
+      <span class="stat-label">Сгенерировано резюме</span>
+      <strong class="stat-value">{{ stats.resumes }}</strong>
+    </article>
+  </section>
+
+  <section class="actions-row">
+    <a class="btn btn-primary" href="/upload">Загрузить резюме</a>
+    <a class="btn btn-ghost" href="/profile">Заполнить профиль</a>
+  </section>
+{% endblock %}

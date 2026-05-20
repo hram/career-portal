@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}Загрузить резюме · Career Portal{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <p class="eyebrow">Инструменты</p>
+    <h1>Загрузить резюме</h1>
+  </section>
+
+  {% if mode == "upload" %}
+    <section class="card upload-panel">
+      <div class="inline-warning">
+        ⚠️ Импорт резюме — стартовая загрузка базы знаний. Если база уже заполнена,
+        при подтверждении импорта текущие данные будут удалены и созданы заново.
+      </div>
+
+      <form id="upload-form" class="upload-form" method="post" action="/upload" enctype="multipart/form-data">
+        <div class="settings-line">
+          <span>Импорт: {{ agents[selected_agent] }}</span>
+          <a href="/settings">Настроить</a>
+        </div>
+
+        <label id="drop-zone" class="drop-zone">
+          <input id="resume-file" type="file" name="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
+          <span class="drop-zone-title">Перетащи PDF или DOCX сюда</span>
+          <span class="drop-zone-text">или выбери файл до 10 МБ</span>
+          <span id="selected-file" class="selected-file">Файл не выбран</span>
+        </label>
+
+        <button id="upload-submit" class="btn btn-primary" type="submit">Загрузить и распарсить</button>
+        <div id="upload-progress" class="upload-progress" hidden>🤖 Читаю резюме...</div>
+      </form>
+    </section>
+  {% else %}
+    <section class="preview-layout">
+      {% if parse_error %}
+        <div class="card preview-block">
+          <h2>Парсинг не завершён</h2>
+          <p class="error-text">{{ parse_error }}</p>
+          <p class="muted-line">Текст из файла ниже. Можно заполнить данные вручную в профиле и опыте работы.</p>
+          {% if raw_text %}
+            <form class="preview-actions" method="post" action="/upload/retry">
+              <input type="hidden" name="preview_id" value="{{ preview_id }}">
+              <select name="agent">
+                {% for agent_id, agent_name in agents.items() %}
+                  <option value="{{ agent_id }}" {% if selected_agent == agent_id %}selected{% endif %}>{{ agent_name }}</option>
+                {% endfor %}
+              </select>
+              <button class="btn btn-primary" type="submit">Повторить парсинг</button>
+            </form>
+          {% endif %}
+        </div>
+      {% elif parse_status == "processing" %}
+        <div class="card preview-block">
+          <h2>{{ agents[selected_agent] }} разбирает резюме</h2>
+          <p class="muted-line">Можно оставить эту вкладку открытой. Результат появится здесь без перезагрузки страницы.</p>
+          <div id="parse-status-message" class="upload-progress">
+            {% if pipeline.stage == "outline_processing" %}
+              Строю быстрый скелет резюме...
+            {% elif pipeline.stage == "outline_done" %}
+              Скелет готов. Начинаю детализацию мест работы...
+            {% elif pipeline.stage == "job_processing" %}
+              Детализирую: {{ pipeline.current_job }} · {{ pipeline.completed_jobs }}/{{ pipeline.total_jobs }}
+            {% elif pipeline.stage == "job_done" %}
+              Готово мест работы: {{ pipeline.completed_jobs }}/{{ pipeline.total_jobs }}
+            {% else %}
+              Идёт структурирование опыта, проектов, навыков и образования...
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+
+      {% if parsed %}
+        <section class="card preview-block">
+          <h2>Личные данные</h2>
+          <dl class="preview-dl">
+            <dt>Имя</dt>
+            <dd>{{ parsed.profile.full_name or "—" }}</dd>
+            <dt>Email</dt>
+            <dd>{{ parsed.profile.email or "—" }}</dd>
+            <dt>Телефон</dt>
+            <dd>{{ parsed.profile.phone or "—" }}</dd>
+            <dt>Город</dt>
+            <dd>{{ parsed.profile.location or "—" }}</dd>
+            <dt>LinkedIn</dt>
+            <dd>{{ parsed.profile.linkedin_url or "—" }}</dd>
+            <dt>GitHub</dt>
+            <dd>{{ parsed.profile.github_url or "—" }}</dd>
+            <dt>Telegram</dt>
+            <dd>{{ parsed.profile.telegram or "—" }}</dd>
+          </dl>
+        </section>
+
+        <section class="card preview-block">
+          <h2>Найдено мест работы: {{ parsed.jobs | length }}</h2>
+          <div class="preview-jobs">
+            {% for job in parsed.jobs %}
+              <details class="preview-job" open>
+                <summary>
+                  {{ job.company or "Без компании" }} — {{ job.position or "Без должности" }}
+                  <span>{{ job.start_date or "?" }} — {% if job.is_current %}present{% else %}{{ job.end_date or "?" }}{% endif %}</span>
+                </summary>
+                <div class="preview-job-body">
+                  <p>Проекты: {{ job.projects | length }}</p>
+                  {% if job.projects %}
+                    <ul>
+                      {% for project in job.projects %}
+                        <li>{{ project.name or "Проект без названия" }}{% if project.tech_stack %} — {{ project.tech_stack }}{% endif %}</li>
+                      {% endfor %}
+                    </ul>
+                  {% endif %}
+                </div>
+              </details>
+            {% endfor %}
+          </div>
+        </section>
+
+        {% if parsed.skills_raw %}
+          <section class="card preview-block">
+            <h2>Навыки</h2>
+            <p>{{ parsed.skills_raw }}</p>
+          </section>
+        {% endif %}
+
+        {% if parsed.education %}
+          <section class="card preview-block">
+            <h2>Образование</h2>
+            {% for item in parsed.education %}
+              <p>{{ item.institution or "—" }}{% if item.degree %} · {{ item.degree }}{% endif %}{% if item.field %} · {{ item.field }}{% endif %}</p>
+            {% endfor %}
+          </section>
+        {% endif %}
+
+        <form class="preview-actions" method="post" action="/upload/confirm">
+          <input type="hidden" name="preview_id" value="{{ preview_id }}">
+          {% if requires_replace_confirmation %}
+            <div class="replace-confirmation">
+              <div>
+                <strong>В базе уже есть данные.</strong>
+                <p>Сохранение этого импорта удалит текущий профильный контент: опыт, проекты, навыки, образование, заметки, сгенерированные резюме и прошлые анализы агента. После удаления данные будут созданы заново из этого preview.</p>
+                {% if confirm_error %}
+                  <p class="error-text">{{ confirm_error }}</p>
+                {% endif %}
+              </div>
+              <label class="checkbox-label">
+                <input id="replace-confirmed" type="checkbox" name="replace_confirmed">
+                <span>Я понимаю и согласен удалить текущую базу знаний и создать её заново из этого резюме</span>
+              </label>
+            </div>
+          {% endif %}
+          <button id="confirm-import-button" class="btn btn-primary" type="submit" {% if requires_replace_confirmation %}disabled{% endif %}>✓ Сохранить в базу</button>
+          <button class="btn btn-ghost" type="submit" formaction="/upload/retry" formmethod="post" name="agent" value="codex-cli">Проверить через Codex</button>
+          <button class="btn btn-ghost" type="submit" formaction="/upload/retry" formmethod="post" name="agent" value="claude-cli">Проверить через Claude</button>
+          <a class="btn btn-ghost" href="/jobs">✗ Отменить</a>
+        </form>
+      {% endif %}
+
+      <section class="card preview-block">
+        <h2>Сырой текст</h2>
+        <pre class="raw-text-preview">{{ raw_text or "Текст не извлечён" }}</pre>
+      </section>
+    </section>
+  {% endif %}
+{% endblock %}
+
+{% block scripts %}
+  {% if mode == "upload" %}
+    <script>
+      const form = document.getElementById("upload-form");
+      const input = document.getElementById("resume-file");
+      const dropZone = document.getElementById("drop-zone");
+      const selected = document.getElementById("selected-file");
+      const progress = document.getElementById("upload-progress");
+      const submit = document.getElementById("upload-submit");
+
+      input.addEventListener("change", () => {
+        selected.textContent = input.files[0] ? input.files[0].name : "Файл не выбран";
+      });
+
+      ["dragenter", "dragover"].forEach((eventName) => {
+        dropZone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          dropZone.classList.add("drag-over");
+        });
+      });
+
+      ["dragleave", "drop"].forEach((eventName) => {
+        dropZone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          dropZone.classList.remove("drag-over");
+        });
+      });
+
+      dropZone.addEventListener("drop", (event) => {
+        if (!event.dataTransfer.files.length) return;
+        input.files = event.dataTransfer.files;
+        selected.textContent = input.files[0].name;
+      });
+
+      form.addEventListener("submit", () => {
+        progress.hidden = false;
+        submit.disabled = true;
+      });
+    </script>
+  {% elif parse_status == "processing" %}
+    <script>
+      const previewId = {{ preview_id | tojson }};
+      let stopped = false;
+
+      async function pollParseStatus() {
+        if (stopped) return;
+        try {
+          const response = await fetch(`/upload/preview/${previewId}/status`, {
+            headers: { "Accept": "application/json" },
+          });
+          if (!response.ok) {
+            throw new Error("status request failed");
+          }
+
+          const payload = await response.json();
+          if (payload.status === "processing") {
+            if (payload.progress_version !== window.__careerPreviewVersion) {
+              window.__careerPreviewVersion = payload.progress_version;
+              await refreshPreviewContent();
+            }
+            window.setTimeout(pollParseStatus, 3000);
+            return;
+          }
+
+          stopped = true;
+          if (payload.status === "done") {
+            await refreshPreviewContent();
+            return;
+          }
+
+          const statusMessage = document.getElementById("parse-status-message");
+          if (statusMessage) {
+            statusMessage.textContent = payload.error || "Парсинг завершился ошибкой.";
+            statusMessage.classList.add("error-text");
+          }
+        } catch (_error) {
+          window.setTimeout(pollParseStatus, 5000);
+        }
+      }
+
+      async function refreshPreviewContent() {
+        const htmlResponse = await fetch(`/upload/preview/${previewId}`, {
+          headers: { "Accept": "text/html" },
+        });
+        const html = await htmlResponse.text();
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const nextContent = doc.querySelector(".preview-layout");
+        const currentContent = document.querySelector(".preview-layout");
+        if (nextContent && currentContent) {
+          currentContent.replaceWith(nextContent);
+        }
+      }
+
+      window.__careerPreviewVersion = 0;
+      window.setTimeout(pollParseStatus, 3000);
+    </script>
+  {% elif mode == "preview" and parsed %}
+    <script>
+      const replaceConfirmed = document.getElementById("replace-confirmed");
+      const confirmImportButton = document.getElementById("confirm-import-button");
+      replaceConfirmed?.addEventListener("change", () => {
+        confirmImportButton.disabled = !replaceConfirmed.checked;
+      });
+    </script>
+  {% endif %}
+{% endblock %}

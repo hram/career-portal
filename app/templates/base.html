@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Career Portal{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/main.css') }}">
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="/">
+        <span class="brand-mark">CP</span>
+        <span>Career Portal</span>
+      </a>
+
+      <nav class="nav">
+        <div class="nav-section">
+          <div class="nav-title">База знаний</div>
+          <a class="nav-link {% if active_page == 'profile' %}active{% endif %}" href="/profile">
+            <span class="nav-icon">👤</span>
+            <span>Профиль</span>
+          </a>
+          <a class="nav-link {% if active_page == 'jobs' %}active{% endif %}" href="/jobs">
+            <span class="nav-icon">💼</span>
+            <span>Опыт и проекты</span>
+          </a>
+          <a class="nav-link {% if active_page == 'skills' %}active{% endif %}" href="/skills">
+            <span class="nav-icon">🛠</span>
+            <span>Навыки и заметки</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-title">Резюме</div>
+          <a class="nav-link {% if active_page == 'roles' %}active{% endif %}" href="/roles">
+            <span class="nav-icon">🎭</span>
+            <span>Роли</span>
+          </a>
+          <a class="nav-link {% if active_page == 'generate' %}active{% endif %}" href="/generate">
+            <span class="nav-icon">✨</span>
+            <span>Создать резюме</span>
+          </a>
+          <a class="nav-link {% if active_page == 'resumes' %}active{% endif %}" href="/resumes">
+            <span class="nav-icon">📄</span>
+            <span>Мои резюме</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-title">Инструменты</div>
+          <a class="nav-link {% if active_page == 'settings' %}active{% endif %}" href="/settings">
+            <span class="nav-icon">⚙️</span>
+            <span>Настройки</span>
+          </a>
+          <a class="nav-link {% if active_page == 'agent' %}active{% endif %}" href="/agent">
+            <span class="nav-icon">🤖</span>
+            <span>ИИ-агент</span>
+          </a>
+          <a class="nav-link {% if active_page == 'upload' %}active{% endif %}" href="/upload">
+            <span class="nav-icon">📤</span>
+            <span>Загрузить резюме</span>
+          </a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div id="flash-root" class="flash-root">
+        {% if flash_success %}
+          <div class="flash flash-success">{{ flash_success }}</div>
+        {% endif %}
+        {% if flash_error %}
+          <div class="flash flash-error">{{ flash_error }}</div>
+        {% endif %}
+      </div>
+
+      {% block content %}{% endblock %}
+    </main>
+
+    <script src="{{ url_for('static', path='/js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

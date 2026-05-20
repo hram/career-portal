@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Опыт и проекты · Career Portal{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <p class="eyebrow">База знаний</p>
+    <h1>Опыт и проекты</h1>
+  </section>
+
+  <section class="card add-job-panel">
+    <details>
+      <summary class="btn btn-primary">+ Добавить место работы</summary>
+      <form class="add-job-form" method="post" action="/jobs">
+        <div class="form-grid">
+          <label>
+            <span>Компания *</span>
+            <input type="text" name="company" required>
+          </label>
+          <label>
+            <span>Должность *</span>
+            <input type="text" name="position" required>
+          </label>
+        </div>
+
+        <label>
+          <span>Город</span>
+          <input type="text" name="location">
+        </label>
+
+        <div class="form-grid period-grid">
+          <label>
+            <span>Период с</span>
+            <input type="text" name="start_date" placeholder="март 2021">
+          </label>
+          <label>
+            <span>по</span>
+            <input type="text" name="end_date" placeholder="май 2025">
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" name="is_current">
+            <span>по настоящее время</span>
+          </label>
+        </div>
+
+        <label>
+          <span>Заметки</span>
+          <textarea name="raw_notes" placeholder="Команда, стек, атмосфера, почему ушёл — пиши как угодно"></textarea>
+        </label>
+
+        <button class="btn btn-primary" type="submit">Сохранить</button>
+      </form>
+    </details>
+  </section>
+
+  <section id="jobs-list" class="jobs-list">
+    {% for job in jobs %}
+      <article class="card job-card" draggable="true" data-job-id="{{ job.id }}">
+        <div class="drag-handle" title="Перетащить">⠿</div>
+        <div class="job-card-main">
+          <h2>{{ job.company }}</h2>
+          <p>{{ job.position }}</p>
+          <div class="muted-line">
+            {{ job.start_date or "не указано" }} — {% if job.is_current %}present{% else %}{{ job.end_date or "не указано" }}{% endif %}
+            {% if job.location %} · {{ job.location }}{% endif %}
+          </div>
+        </div>
+        <div class="job-card-meta">{{ job.projects | length }} проектов</div>
+        <div class="job-card-actions">
+          <a class="btn btn-ghost" href="/jobs/{{ job.id }}">Открыть</a>
+          <button class="btn btn-danger" type="button" onclick="confirmDelete('/jobs/{{ job.id }}', {{ job.company | tojson }})">Удалить</button>
+        </div>
+      </article>
+    {% else %}
+      <div class="card empty-state">
+        <h2>Опыт пока пустой</h2>
+        <p>Добавь первое место работы, затем разложи внутри него проекты и сырые заметки.</p>
+      </div>
+    {% endfor %}
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    const jobsList = document.getElementById("jobs-list");
+    let draggedJob = null;
+
+    jobsList?.addEventListener("dragstart", (event) => {
+      const card = event.target.closest(".job-card");
+      if (!card) return;
+      draggedJob = card;
+      card.classList.add("dragging");
+    });
+
+    jobsList?.addEventListener("dragend", () => {
+      draggedJob?.classList.remove("dragging");
+      draggedJob = null;
+      persistJobOrder();
+    });
+
+    jobsList?.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      const after = getDragAfterElement(jobsList, event.clientY, ".job-card:not(.dragging)");
+      if (!draggedJob) return;
+      if (after == null) {
+        jobsList.appendChild(draggedJob);
+      } else {
+        jobsList.insertBefore(draggedJob, after);
+      }
+    });
+
+    async function persistJobOrder() {
+      const payload = [...document.querySelectorAll(".job-card")].map((card, index) => ({
+        id: Number(card.dataset.jobId),
+        sort_order: index + 1,
+      }));
+      if (!payload.length) return;
+      const response = await fetch("/jobs/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        flash("Не удалось сохранить порядок", "error");
+      }
+    }
+  </script>
+{% endblock %}
