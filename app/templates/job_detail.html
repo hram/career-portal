@@ -45,7 +45,7 @@
           <ul data-analysis-questions>
             {% if analysis and analysis.result.questions %}
               {% for question in analysis.result.questions %}
-                <li>{% if question.project_id %}<strong>Project ID {{ question.project_id }}:</strong> {% endif %}{{ question.text }}</li>
+                <li>{% if kind != "project" and question.project_id %}<strong>Project ID {{ question.project_id }}:</strong> {% endif %}{{ question.text }}</li>
               {% endfor %}
             {% else %}
               <li class="muted-line">Вопросов пока нет</li>
@@ -621,7 +621,7 @@
       renderList(
         block.querySelector("[data-analysis-questions]"),
         (result.questions || []).map((item) => {
-          const prefix = item.project_id ? `Project ID ${item.project_id}: ` : "";
+          const prefix = kind !== "project" && item.project_id ? `Project ID ${item.project_id}: ` : "";
           return `${prefix}${item.text || ""}`;
         }),
         "Вопросов нет",
