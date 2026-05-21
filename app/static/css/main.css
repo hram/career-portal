@@ -238,6 +238,13 @@ h1 {
   gap: 12px;
 }
 
+.action-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -417,6 +424,10 @@ textarea::placeholder {
 
 .profile-summary-panel textarea {
   min-height: 430px;
+}
+
+.profile-agent-panel {
+  margin-top: 22px;
 }
 
 .field-hint {
@@ -736,6 +747,59 @@ details > summary::-webkit-details-marker {
   font-weight: 600;
 }
 
+.prompt-dialog {
+  width: min(1180px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  height: min(860px, calc(100vh - 32px));
+  max-height: calc(100vh - 32px);
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  padding: 22px;
+  background: var(--bg-card);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.prompt-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.prompt-dialog::backdrop {
+  background: rgb(17 24 39 / 0.44);
+}
+
+.prompt-dialog-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.prompt-dialog-header h2 {
+  margin: 0 0 4px;
+}
+
+.prompt-preview-text {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  resize: none;
+  font: 13px/1.5 "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+}
+
+.prompt-dialog .form-actions {
+  flex: 0 0 auto;
+  align-items: center;
+  padding-top: 0;
+}
+
+.prompt-dialog .form-actions .btn {
+  flex: 0 0 auto;
+  height: 40px;
+}
+
 .resumes-list {
   display: grid;
   gap: 12px;
@@ -951,6 +1015,7 @@ details > summary::-webkit-details-marker {
   border: 0.5px solid var(--border);
   border-radius: 8px;
   background: var(--bg-card);
+  user-select: text;
 }
 
 .analysis-header,
@@ -961,10 +1026,59 @@ details > summary::-webkit-details-marker {
   align-items: center;
 }
 
+.analysis-score-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.score-label {
+  padding: 5px 8px;
+  border: 0.5px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-hover);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.score-label[data-score-level="critical"] {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: var(--bg-danger);
+}
+
+.score-label[data-score-level="weak"] {
+  border-color: var(--warning);
+  color: var(--warning);
+  background: var(--bg-warning);
+}
+
+.score-label[data-score-level="good"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
+}
+
+.score-label[data-score-level="excellent"] {
+  border-color: var(--success);
+  color: var(--success);
+  background: var(--bg-success);
+}
+
+.analysis-toggle-btn {
+  min-height: 32px;
+  padding: 6px 10px;
+}
+
 .analysis-header h3 {
   margin: 0;
   font-size: 17px;
   letter-spacing: 0;
+}
+
+.analysis-title {
+  display: grid;
+  gap: 4px;
 }
 
 .analysis-meta,
@@ -976,6 +1090,15 @@ details > summary::-webkit-details-marker {
 
 .small-score-bar {
   height: 8px;
+}
+
+.analysis-details {
+  display: grid;
+  gap: 14px;
+}
+
+.analysis-block.details-collapsed .analysis-details {
+  display: none;
 }
 
 .analysis-columns {
@@ -997,10 +1120,58 @@ details > summary::-webkit-details-marker {
   font-size: 14px;
 }
 
+.analysis-tag-section,
+.analysis-edits {
+  display: grid;
+  gap: 8px;
+}
+
+.analysis-tag-section h4,
+.analysis-edits h4 {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
 .analysis-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.analysis-edits dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.analysis-edits dt {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.analysis-edits dd {
+  margin: 0;
+  padding: 10px 12px;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.analysis-text-block {
+  padding: 10px 12px;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 
 .project-analysis-status {
@@ -1340,7 +1511,6 @@ details > summary::-webkit-details-marker {
   .job-card-meta,
   .job-card-actions,
   .project-summary > .muted-line,
-  .project-summary > .analysis-run-btn,
   .project-edit-btn,
   .project-summary > .btn-danger,
   .resume-card > .btn {

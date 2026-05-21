@@ -8,7 +8,14 @@ from sqlalchemy import select
 
 from app.database import SessionLocal
 from app.models.models import AgentAnalysis
-from app.services.ai_agent import AIAgentError, analyze_job, analyze_profile, analyze_project
+from app.services.ai_agent import (
+    AIAgentError,
+    analyze_job,
+    analyze_profile,
+    analyze_profile_only,
+    analyze_project,
+    build_analysis_prompt_preview,
+)
 from app.services.settings import SUPPORTED_AI_AGENTS, get_ai_agent
 
 
@@ -52,6 +59,44 @@ async def agent_analyze():
             "result": result,
         }
     )
+
+
+@router.post("/agent/preview-prompt")
+async def agent_preview_prompt(request: Request):
+    form = await request.form()
+    target_type = str(form.get("target_type") or "").strip()
+    target_id = _int_or_none(form.get("target_id"))
+
+    with SessionLocal() as db:
+        selected_agent = get_ai_agent(db)
+        try:
+            prompt = build_analysis_prompt_preview(
+                db,
+                target_type=target_type,
+                target_id=target_id,
+                profile_id=1,
+                provider=selected_agent,
+            )
+        except AIAgentError as exc:
+            return JSONResponse({"status": "error", "error": str(exc)}, status_code=400)
+
+    return JSONResponse({"status": "ok", "agent": selected_agent, "prompt": prompt})
+
+
+@router.post("/agent/analyze/profile")
+async def agent_analyze_profile_only():
+    with SessionLocal() as db:
+        selected_agent = get_ai_agent(db)
+        try:
+            result = analyze_profile_only(db, profile_id=1, provider=selected_agent)
+        except AIAgentError as exc:
+            return JSONResponse({"status": "error", "error": str(exc)}, status_code=500)
+        analysis = _save_analysis(db, provider=selected_agent, target_type="profile_only", target_id=None, result=result)
+        db.refresh(analysis)
+        payload = _analysis_payload(analysis, result)
+        db.commit()
+
+    return JSONResponse({"status": "ok", "agent": selected_agent, "analysis": payload, "result": result})
 
 
 @router.post("/agent/analyze/job/{job_id}")
@@ -132,3 +177,10 @@ def _analysis_payload(analysis: AgentAnalysis, result: dict) -> dict:
         "created_at": analysis.created_at.isoformat() if analysis.created_at else "",
         "result": result,
     }
+
+
+def _int_or_none(value: object) -> int | None:
+    try:
+        return int(str(value))
+    except (TypeError, ValueError):
+        return None

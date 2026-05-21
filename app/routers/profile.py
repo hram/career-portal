@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from fastapi import APIRouter, Request
@@ -6,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 
 from app.database import SessionLocal
-from app.models.models import Profile
+from app.models.models import AgentAnalysis, Profile
 
 
 router = APIRouter()
@@ -31,6 +32,7 @@ async def profile_page(request: Request):
         profile = get_or_create_profile(db)
         title = profile.full_name.strip() if profile.full_name else "Мой профиль"
         show_contact_warning = request.query_params.get("contact_warning") == "1"
+        last_profile_analysis = load_last_profile_analysis(db, profile.id)
 
         return templates.TemplateResponse(
             "profile.html",
@@ -43,6 +45,7 @@ async def profile_page(request: Request):
                 if request.query_params.get("saved") == "1"
                 else None,
                 "contact_warning": show_contact_warning,
+                "last_profile_analysis": last_profile_analysis,
             },
         )
 
@@ -76,3 +79,30 @@ async def save_profile(request: Request):
     if has_contact_warning:
         redirect_url += "&contact_warning=1"
     return RedirectResponse(redirect_url, status_code=303)
+
+
+def load_last_profile_analysis(db, profile_id: int) -> dict | None:
+    analysis = db.scalar(
+        select(AgentAnalysis)
+        .where(
+            AgentAnalysis.profile_id == profile_id,
+            AgentAnalysis.target_type == "profile_only",
+            AgentAnalysis.target_id.is_(None),
+        )
+        .order_by(AgentAnalysis.created_at.desc(), AgentAnalysis.id.desc())
+        .limit(1)
+    )
+    if analysis is None:
+        return None
+    try:
+        result = json.loads(analysis.result_json)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(result, dict):
+        return None
+    return {
+        "id": analysis.id,
+        "agent": analysis.provider,
+        "created_at": analysis.created_at.isoformat() if analysis.created_at else "",
+        "result": result,
+    }

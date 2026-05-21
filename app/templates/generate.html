@@ -42,8 +42,8 @@
       </div>
 
       <label>
-        <span>Текст вакансии *</span>
-        <textarea name="vacancy_text" class="vacancy-textarea" required placeholder="Вставь полный текст вакансии: обязанности, требования, стек">{{ values.vacancy_text or "" }}</textarea>
+        <span>Текст вакансии</span>
+        <textarea name="vacancy_text" class="vacancy-textarea" placeholder="Можно оставить пустым для проверки генерации только по выбранной роли. Или вставь полный текст вакансии: обязанности, требования, стек">{{ values.vacancy_text or "" }}</textarea>
       </label>
 
       <div class="generate-loading" id="generate-loading" hidden>
@@ -53,22 +53,79 @@
 
       <div class="form-actions split-actions">
         <button class="btn btn-primary" type="submit" {% if not roles %}disabled{% endif %}>Создать резюме</button>
+        <button id="preview-prompt-button" class="btn btn-ghost" type="button" {% if not roles %}disabled{% endif %}>Посмотреть промпт</button>
         <a class="btn btn-ghost" href="/resumes">Мои резюме</a>
       </div>
     </form>
   </section>
+
+  <dialog id="prompt-dialog" class="prompt-dialog">
+    <div class="prompt-dialog-header">
+      <div>
+        <h2>Итоговый промпт</h2>
+        <p id="prompt-dialog-agent" class="field-hint"></p>
+      </div>
+      <button class="btn btn-ghost" type="button" data-close-prompt>Закрыть</button>
+    </div>
+    <div id="prompt-dialog-error" class="error-text" hidden></div>
+    <textarea id="prompt-preview-text" class="prompt-preview-text" readonly></textarea>
+    <div class="form-actions">
+      <button id="copy-prompt-button" class="btn btn-primary" type="button">Скопировать промпт</button>
+    </div>
+  </dialog>
 {% endblock %}
 
 {% block scripts %}
   <script>
     const generateForm = document.getElementById("generate-form");
     const generateLoading = document.getElementById("generate-loading");
+    const previewPromptButton = document.getElementById("preview-prompt-button");
+    const promptDialog = document.getElementById("prompt-dialog");
+    const promptDialogAgent = document.getElementById("prompt-dialog-agent");
+    const promptDialogError = document.getElementById("prompt-dialog-error");
+    const promptPreviewText = document.getElementById("prompt-preview-text");
+    const copyPromptButton = document.getElementById("copy-prompt-button");
+
     generateForm?.addEventListener("submit", () => {
       generateLoading.hidden = false;
       generateForm.querySelectorAll("button[type='submit']").forEach((button) => {
         button.disabled = true;
         button.textContent = "Генерирую...";
       });
+    });
+
+    previewPromptButton?.addEventListener("click", async () => {
+      promptDialogError.hidden = true;
+      promptDialogError.textContent = "";
+      promptDialogAgent.textContent = "";
+      promptPreviewText.value = "Собираю промпт...";
+      promptDialog.showModal();
+
+      try {
+        const response = await fetch("/generate/preview-prompt", {
+          method: "POST",
+          body: new FormData(generateForm),
+        });
+        const payload = await response.json();
+        if (!response.ok || payload.status !== "ok") {
+          throw new Error(payload.error || "Не удалось собрать промпт");
+        }
+        promptDialogAgent.textContent = `Агент: ${payload.agent}`;
+        promptPreviewText.value = payload.prompt || "";
+      } catch (error) {
+        promptPreviewText.value = "";
+        promptDialogError.textContent = error.message;
+        promptDialogError.hidden = false;
+      }
+    });
+
+    document.querySelector("[data-close-prompt]")?.addEventListener("click", () => {
+      promptDialog.close();
+    });
+
+    copyPromptButton?.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(promptPreviewText.value);
+      flash("Промпт скопирован");
     });
   </script>
 {% endblock %}

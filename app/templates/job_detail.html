@@ -1,51 +1,182 @@
 {% extends "base.html" %}
 
 {% macro analysis_block(kind, target_id, analysis) %}
-  <section id="analysis-{{ kind }}-{{ target_id }}" class="analysis-block" {% if not analysis %}hidden{% endif %}>
+  <section id="analysis-{{ kind }}-{{ target_id }}" class="analysis-block" {% if not analysis and kind != "project" %}hidden{% endif %}>
     <div class="analysis-header">
-      <h3>Последняя проверка</h3>
-      <span class="analysis-meta">
-        {% if analysis %}{{ analysis.agent }} · {{ analysis.created_at }}{% endif %}
-      </span>
+      <div class="analysis-title">
+        <h3>Последняя проверка</h3>
+        <span class="analysis-meta">
+          {% if analysis %}{{ analysis.agent }} · {{ analysis.created_at }}{% endif %}
+        </span>
+      </div>
+      {% if kind == "project" %}
+        <div class="action-group">
+          <button class="btn btn-ghost analysis-run-btn" type="button" data-analysis-kind="project" data-target-id="{{ target_id }}">Проверить</button>
+          <button class="btn btn-ghost analysis-prompt-btn" type="button" data-prompt-target-type="project" data-prompt-target-id="{{ target_id }}">Посмотреть промпт</button>
+        </div>
+      {% endif %}
     </div>
     <div class="analysis-score">
       <span>Готовность</span>
-      <strong data-analysis-score>{% if analysis %}{{ analysis.result.overall_score }}{% else %}0{% endif %}%</strong>
+      <div class="analysis-score-actions">
+        <strong data-analysis-score>{% if analysis %}{{ analysis.result.overall_score }}{% else %}0{% endif %}%</strong>
+        {% set score = analysis.result.overall_score if analysis else 0 %}
+        <span class="score-label" data-analysis-score-label data-score-level="{% if score <= 40 %}critical{% elif score <= 65 %}weak{% elif score <= 85 %}good{% else %}excellent{% endif %}">
+          {% if score <= 40 %}
+            Нельзя использовать
+          {% elif score <= 65 %}
+            Можно, но слабо
+          {% elif score <= 85 %}
+            Хорошо
+          {% else %}
+            Отлично
+          {% endif %}
+        </span>
+        <button class="btn btn-ghost analysis-toggle-btn" type="button" data-analysis-toggle>Свернуть детали</button>
+      </div>
     </div>
     <div class="score-bar small-score-bar">
       <div data-analysis-score-fill style="width: {% if analysis %}{{ analysis.result.overall_score }}{% else %}0{% endif %}%"></div>
     </div>
-    <div class="analysis-columns">
-      <div>
-        <h4>Вопросы</h4>
-        <ul data-analysis-questions>
-          {% if analysis and analysis.result.questions %}
-            {% for question in analysis.result.questions %}
-              <li>{{ question.text }}</li>
+    <div class="analysis-details">
+      <div class="analysis-columns">
+        <div>
+          <h4>Вопросы</h4>
+          <ul data-analysis-questions>
+            {% if analysis and analysis.result.questions %}
+              {% for question in analysis.result.questions %}
+                <li>{% if question.project_id %}<strong>Project ID {{ question.project_id }}:</strong> {% endif %}{{ question.text }}</li>
+              {% endfor %}
+            {% else %}
+              <li class="muted-line">Вопросов пока нет</li>
+            {% endif %}
+          </ul>
+        </div>
+        <div>
+          <h4>Рекомендации</h4>
+          <ul data-analysis-recommendations>
+            {% if analysis and analysis.result.recommendations %}
+              {% for item in analysis.result.recommendations %}
+                <li>{{ item }}</li>
+              {% endfor %}
+            {% else %}
+              <li class="muted-line">Рекомендаций пока нет</li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+
+      <div class="analysis-columns">
+        <div>
+          <h4>Слабые места</h4>
+          <ul data-analysis-weak-points>
+            {% if analysis and analysis.result.weak_points %}
+              {% for item in analysis.result.weak_points %}
+                <li>{{ item }}</li>
+              {% endfor %}
+            {% else %}
+              <li class="muted-line">Слабых мест пока нет</li>
+            {% endif %}
+          </ul>
+        </div>
+        <div>
+          <h4>Сильные стороны</h4>
+          <ul data-analysis-strengths>
+            {% if analysis and analysis.result.strengths %}
+              {% for item in analysis.result.strengths %}
+                <li>{{ item }}</li>
+              {% endfor %}
+            {% else %}
+              <li class="muted-line">Сильные стороны пока не выделены</li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+
+      <div class="analysis-tag-section">
+        <h4>Критичные пробелы</h4>
+        <div class="analysis-tags" data-analysis-missing>
+          {% if analysis and analysis.result.missing_critical %}
+            {% for item in analysis.result.missing_critical %}
+              <span class="analysis-tag">{{ item }}</span>
             {% endfor %}
           {% else %}
-            <li class="muted-line">Вопросов пока нет</li>
+            <span class="muted-line">Критичных пробелов нет</span>
           {% endif %}
-        </ul>
+        </div>
       </div>
-      <div>
-        <h4>Рекомендации</h4>
-        <ul data-analysis-recommendations>
-          {% if analysis and analysis.result.recommendations %}
-            {% for item in analysis.result.recommendations %}
-              <li>{{ item }}</li>
-            {% endfor %}
-          {% else %}
-            <li class="muted-line">Рекомендаций пока нет</li>
-          {% endif %}
-        </ul>
+
+      {% if kind == "job" %}
+        <div class="analysis-tag-section">
+          <h4>Пустые проекты</h4>
+          <div class="analysis-tags" data-analysis-empty-projects>
+            {% if analysis and analysis.result.empty_projects %}
+              {% for project_id in analysis.result.empty_projects %}
+                <span class="analysis-tag">Project ID {{ project_id }}</span>
+              {% endfor %}
+            {% else %}
+              <span class="muted-line">Пустых проектов нет</span>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="analysis-columns">
+        <div class="analysis-tag-section">
+          <h4>ATS: не хватает</h4>
+          <div class="analysis-tags" data-analysis-ats-missing>
+            {% if analysis and analysis.result.ats_keywords_missing %}
+              {% for item in analysis.result.ats_keywords_missing %}
+                <span class="analysis-tag">{{ item }}</span>
+              {% endfor %}
+            {% else %}
+              <span class="muted-line">Нет данных</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="analysis-tag-section">
+          <h4>ATS: уже есть</h4>
+          <div class="analysis-tags tag-list-success" data-analysis-ats-present>
+            {% if analysis and analysis.result.ats_keywords_present %}
+              {% for item in analysis.result.ats_keywords_present %}
+                <span class="analysis-tag">{{ item }}</span>
+              {% endfor %}
+            {% else %}
+              <span class="muted-line">Нет данных</span>
+            {% endif %}
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="analysis-tags" data-analysis-missing>
-      {% if analysis and analysis.result.missing_critical %}
-        {% for item in analysis.result.missing_critical %}
-          <span class="analysis-tag">{{ item }}</span>
-        {% endfor %}
+
+      {% if kind == "project" %}
+        <div class="analysis-edits">
+          <h4>Suggested edits</h4>
+          <dl data-analysis-suggested-edits>
+            {% if analysis and analysis.result.suggested_edits %}
+              {% for field, value in analysis.result.suggested_edits.items() %}
+                {% if value %}
+                  <dt>{{ field }}</dt>
+                  <dd>{{ value }}</dd>
+                {% endif %}
+              {% endfor %}
+            {% else %}
+              <div class="muted-line">Правок пока нет</div>
+            {% endif %}
+          </dl>
+        </div>
+      {% endif %}
+
+      {% if kind == "job" %}
+        <div class="analysis-edits">
+          <h4>Suggested company summary</h4>
+          <div class="analysis-text-block" data-analysis-job-summary>
+            {% if analysis and analysis.result.suggested_job_summary %}
+              {{ analysis.result.suggested_job_summary }}
+            {% else %}
+              <span class="muted-line">Формулировки пока нет</span>
+            {% endif %}
+          </div>
+        </div>
       {% endif %}
     </div>
   </section>
@@ -118,7 +249,10 @@
   <section class="card job-detail-panel analysis-shell">
     <div class="section-row">
       <h2>Проверка места работы</h2>
-      <button class="btn btn-primary analysis-run-btn" type="button" data-analysis-kind="job" data-target-id="{{ job.id }}">Проверить место работы</button>
+      <div class="action-group">
+        <button class="btn btn-primary analysis-run-btn" type="button" data-analysis-kind="job" data-target-id="{{ job.id }}">Проверить место работы</button>
+        <button class="btn btn-ghost analysis-prompt-btn" type="button" data-prompt-target-type="job" data-prompt-target-id="{{ job.id }}">Посмотреть промпт</button>
+      </div>
     </div>
     <p class="muted-line">Агент проверит это место работы как совокупность проектов: цельность периода, пробелы, метрики, роль и дубли.</p>
     <div id="analysis-loading-job-{{ job.id }}" class="upload-progress" hidden>Агент проверяет место работы...</div>
@@ -133,17 +267,13 @@
 
     <div id="projects-list" class="projects-list" data-job-id="{{ job.id }}">
       {% for project in job.projects %}
-        <article class="card project-card" draggable="true" data-project-id="{{ project.id }}">
+        <article class="card project-card" data-project-id="{{ project.id }}">
           <div class="project-summary">
-            <span class="drag-handle" title="Перетащить">⠿</span>
+            <span class="drag-handle" title="Перетащить" draggable="true">⠿</span>
             <button class="collapse-toggle" type="button" aria-label="Развернуть проект">▶</button>
             <div class="project-summary-main">
               <strong>{{ project.name }}</strong>
             </div>
-            {% if project.my_role %}
-              <span class="muted-line">{{ project.my_role }}</span>
-            {% endif %}
-            <button class="btn btn-ghost analysis-run-btn" type="button" data-analysis-kind="project" data-target-id="{{ project.id }}">Проверить</button>
             <button class="btn btn-ghost project-edit-btn" type="button">Изменить</button>
             <button class="btn btn-danger" type="button" onclick="confirmDelete('/jobs/{{ job.id }}/projects/{{ project.id }}', {{ project.name | tojson }})">✕</button>
           </div>
@@ -182,11 +312,12 @@
               <textarea name="results_raw" placeholder='"ускорили в 2 раза", "запустили на 50к пользователей", "сократили время деплоя с часа до 5 минут"'>{{ project.results_raw or '' }}</textarea>
             </label>
 
+            <label>
+              <span>Моя роль</span>
+              <textarea name="my_role" placeholder="Что именно делал: роль, зона ответственности, решения, лидерство, влияние на команду">{{ project.my_role or '' }}</textarea>
+            </label>
+
             <div class="form-grid">
-              <label>
-                <span>Моя роль</span>
-                <input type="text" name="my_role" value="{{ project.my_role or '' }}">
-              </label>
               <label>
                 <span>Размер команды</span>
                 <input type="text" name="team_size" value="{{ project.team_size or '' }}">
@@ -227,11 +358,11 @@
             <span>Стек / технологии</span>
             <input type="text" name="tech_stack" placeholder="Python, FastAPI, Redis">
           </label>
+          <label>
+            <span>Моя роль</span>
+            <textarea name="my_role" placeholder="Что именно делал: роль, зона ответственности, решения, лидерство, влияние на команду"></textarea>
+          </label>
           <div class="form-grid">
-            <label>
-              <span>Моя роль</span>
-              <input type="text" name="my_role">
-            </label>
             <label>
               <span>Размер команды</span>
               <input type="text" name="team_size">
@@ -242,6 +373,21 @@
       </details>
     </section>
   </section>
+
+  <dialog id="prompt-dialog" class="prompt-dialog">
+    <div class="prompt-dialog-header">
+      <div>
+        <h2>Промпт проверки</h2>
+        <p id="prompt-dialog-agent" class="field-hint"></p>
+      </div>
+      <button class="btn btn-ghost" type="button" data-close-prompt>Закрыть</button>
+    </div>
+    <div id="prompt-dialog-error" class="error-text" hidden></div>
+    <textarea id="prompt-preview-text" class="prompt-preview-text" readonly></textarea>
+    <div class="form-actions">
+      <button id="copy-prompt-button" class="btn btn-primary" type="button">Скопировать промпт</button>
+    </div>
+  </dialog>
 {% endblock %}
 
 {% block scripts %}
@@ -249,6 +395,12 @@
     const jobForm = document.getElementById("job-form");
     const jobSaveStatus = document.getElementById("job-save-status");
     const projectsList = document.getElementById("projects-list");
+    const promptDialog = document.getElementById("prompt-dialog");
+    const promptDialogAgent = document.getElementById("prompt-dialog-agent");
+    const promptDialogError = document.getElementById("prompt-dialog-error");
+    const promptPreviewText = document.getElementById("prompt-preview-text");
+    const copyPromptButton = document.getElementById("copy-prompt-button");
+    const analysisCollapseStoragePrefix = "career-portal:analysis-collapsed:";
     let draggedProject = null;
 
     function setStatus(element, text, state) {
@@ -327,10 +479,17 @@
     });
 
     projectsList?.addEventListener("dragstart", (event) => {
-      const card = event.target.closest(".project-card");
+      const handle = event.target.closest(".drag-handle");
+      if (!handle) {
+        event.preventDefault();
+        return;
+      }
+      const card = handle.closest(".project-card");
       if (!card) return;
       draggedProject = card;
       card.classList.add("dragging");
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", card.dataset.projectId || "");
     });
 
     projectsList?.addEventListener("dragend", () => {
@@ -396,18 +555,126 @@
       });
     });
 
+    document.querySelectorAll(".analysis-prompt-btn").forEach((button) => {
+      button.addEventListener("click", () => showAnalysisPrompt(button));
+    });
+
+    document.querySelectorAll("[data-analysis-toggle]").forEach((button) => {
+      button.addEventListener("click", () => toggleAnalysisDetails(button));
+    });
+
+    document.querySelectorAll(".analysis-block").forEach((block) => {
+      restoreAnalysisDetailsState(block);
+    });
+
+    document.querySelector("[data-close-prompt]")?.addEventListener("click", () => {
+      promptDialog.close();
+    });
+
+    copyPromptButton?.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(promptPreviewText.value);
+      flash("Промпт скопирован");
+    });
+
+    async function showAnalysisPrompt(button) {
+      promptDialogError.hidden = true;
+      promptDialogError.textContent = "";
+      promptDialogAgent.textContent = "";
+      promptPreviewText.value = "Собираю промпт...";
+      promptDialog.showModal();
+
+      const data = new FormData();
+      data.append("target_type", button.dataset.promptTargetType || "");
+      if (button.dataset.promptTargetId) {
+        data.append("target_id", button.dataset.promptTargetId);
+      }
+
+      try {
+        const response = await fetch("/agent/preview-prompt", {
+          method: "POST",
+          body: data,
+        });
+        const payload = await response.json();
+        if (!response.ok || payload.status !== "ok") {
+          throw new Error(payload.error || "Не удалось собрать промпт");
+        }
+        promptDialogAgent.textContent = `Агент: ${payload.agent}`;
+        promptPreviewText.value = payload.prompt || "";
+      } catch (error) {
+        promptPreviewText.value = "";
+        promptDialogError.textContent = error.message;
+        promptDialogError.hidden = false;
+      }
+    }
+
     function renderAnalysisBlock(kind, targetId, analysis) {
       const block = document.getElementById(`analysis-${kind}-${targetId}`);
       if (!block || !analysis || !analysis.result) return;
       const result = analysis.result;
       block.hidden = false;
+      setAnalysisDetailsCollapsed(block, false);
       const score = Math.max(0, Math.min(100, Number(result.overall_score || 0)));
       block.querySelector("[data-analysis-score]").textContent = `${score}%`;
       block.querySelector("[data-analysis-score-fill]").style.width = `${score}%`;
+      updateScoreLabel(block, score);
       block.querySelector(".analysis-meta").textContent = `${analysis.agent} · ${analysis.created_at || ""}`;
-      renderList(block.querySelector("[data-analysis-questions]"), (result.questions || []).map((item) => item.text || ""), "Вопросов нет");
+      renderList(
+        block.querySelector("[data-analysis-questions]"),
+        (result.questions || []).map((item) => {
+          const prefix = item.project_id ? `Project ID ${item.project_id}: ` : "";
+          return `${prefix}${item.text || ""}`;
+        }),
+        "Вопросов нет",
+      );
       renderList(block.querySelector("[data-analysis-recommendations]"), result.recommendations || [], "Рекомендаций нет");
-      renderTagList(block.querySelector("[data-analysis-missing]"), result.missing_critical || []);
+      renderList(block.querySelector("[data-analysis-weak-points]"), result.weak_points || [], "Слабых мест нет");
+      renderList(block.querySelector("[data-analysis-strengths]"), result.strengths || [], "Сильные стороны пока не выделены");
+      renderTagList(block.querySelector("[data-analysis-missing]"), result.missing_critical || [], "Критичных пробелов нет");
+      renderProjectIdTags(block.querySelector("[data-analysis-empty-projects]"), result.empty_projects || [], "Пустых проектов нет");
+      renderTagList(block.querySelector("[data-analysis-ats-missing]"), result.ats_keywords_missing || [], "Нет данных");
+      renderTagList(block.querySelector("[data-analysis-ats-present]"), result.ats_keywords_present || [], "Нет данных");
+      renderSuggestedEdits(block.querySelector("[data-analysis-suggested-edits]"), result.suggested_edits || {});
+      renderTextBlock(block.querySelector("[data-analysis-job-summary]"), result.suggested_job_summary || "", "Формулировки пока нет");
+    }
+
+    function toggleAnalysisDetails(button) {
+      const block = button.closest(".analysis-block");
+      if (!block) return;
+      const collapsed = !block.classList.contains("details-collapsed");
+      setAnalysisDetailsCollapsed(block, collapsed);
+      window.localStorage.setItem(analysisCollapseStoragePrefix + block.id, collapsed ? "1" : "0");
+    }
+
+    function restoreAnalysisDetailsState(block) {
+      if (!block.id) return;
+      const stored = window.localStorage.getItem(analysisCollapseStoragePrefix + block.id);
+      setAnalysisDetailsCollapsed(block, stored === "1");
+    }
+
+    function setAnalysisDetailsCollapsed(block, collapsed) {
+      block.classList.toggle("details-collapsed", collapsed);
+      const button = block.querySelector("[data-analysis-toggle]");
+      if (button) {
+        button.textContent = collapsed ? "Показать детали" : "Свернуть детали";
+      }
+    }
+
+    function updateScoreLabel(block, score) {
+      const label = block.querySelector("[data-analysis-score-label]");
+      if (!label) return;
+      if (score <= 40) {
+        label.textContent = "Нельзя использовать";
+        label.dataset.scoreLevel = "critical";
+      } else if (score <= 65) {
+        label.textContent = "Можно, но слабо";
+        label.dataset.scoreLevel = "weak";
+      } else if (score <= 85) {
+        label.textContent = "Хорошо";
+        label.dataset.scoreLevel = "good";
+      } else {
+        label.textContent = "Отлично";
+        label.dataset.scoreLevel = "excellent";
+      }
     }
 
     function renderList(root, items, emptyText) {
@@ -427,14 +694,65 @@
       });
     }
 
-    function renderTagList(root, items) {
+    function renderTagList(root, items, emptyText) {
       root.replaceChildren();
-      items.filter(Boolean).forEach((item) => {
+      const values = items.filter(Boolean);
+      if (!values.length) {
+        const empty = document.createElement("span");
+        empty.className = "muted-line";
+        empty.textContent = emptyText;
+        root.appendChild(empty);
+        return;
+      }
+      values.forEach((item) => {
         const tag = document.createElement("span");
         tag.className = "analysis-tag";
         tag.textContent = item;
         root.appendChild(tag);
       });
+    }
+
+    function renderProjectIdTags(root, ids, emptyText) {
+      if (!root) return;
+      const labels = ids
+        .map((id) => Number(id))
+        .filter((id) => Number.isInteger(id))
+        .map((id) => `Project ID ${id}`);
+      renderTagList(root, labels, emptyText);
+    }
+
+    function renderSuggestedEdits(root, edits) {
+      if (!root) return;
+      root.replaceChildren();
+      const entries = Object.entries(edits).filter(([, value]) => String(value || "").trim());
+      if (!entries.length) {
+        const empty = document.createElement("div");
+        empty.className = "muted-line";
+        empty.textContent = "Правок пока нет";
+        root.appendChild(empty);
+        return;
+      }
+      entries.forEach(([field, value]) => {
+        const dt = document.createElement("dt");
+        dt.textContent = field;
+        const dd = document.createElement("dd");
+        dd.textContent = value;
+        root.append(dt, dd);
+      });
+    }
+
+    function renderTextBlock(root, value, emptyText) {
+      if (!root) return;
+      root.replaceChildren();
+      const text = String(value || "").trim();
+      if (!text) {
+        const empty = document.createElement("span");
+        empty.className = "muted-line";
+        empty.textContent = emptyText;
+        root.appendChild(empty);
+        return;
+      }
+      root.textContent = text;
     }
   </script>
 {% endblock %}

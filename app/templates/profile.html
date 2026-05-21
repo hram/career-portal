@@ -82,12 +82,75 @@
       <p class="field-hint">Это поле только для тебя. ИИ-агент будет использовать эти данные при генерации резюме.</p>
     </section>
   </form>
+
+  <section class="card agent-panel profile-agent-panel">
+    <div class="agent-start">
+      <div>
+        <h2>Проверка профиля ИИ-агентом</h2>
+        <p class="muted-line">Агент прочитает только личные данные и раздел «О себе», найдёт пробелы и задаст уточняющие вопросы.</p>
+      </div>
+      <div class="action-group">
+        <button id="profile-analyze-button" class="btn btn-primary" type="button">Проверить профиль</button>
+        <button class="btn btn-ghost analysis-prompt-btn" type="button" data-prompt-target-type="profile_only">Посмотреть промпт</button>
+      </div>
+    </div>
+
+    <div id="profile-agent-loading" class="agent-loading" hidden>
+      <div class="upload-progress">Агент читает данные...</div>
+    </div>
+
+    <div id="profile-agent-error" class="error-text" hidden></div>
+
+    <div id="profile-agent-result" class="agent-result" hidden>
+      <section class="agent-score">
+        <div class="section-row">
+          <h2>Готовность базы</h2>
+          <strong id="profile-score-value">0%</strong>
+        </div>
+        <div class="score-bar">
+          <div id="profile-score-fill"></div>
+        </div>
+      </section>
+
+      <section class="agent-section">
+        <h2>Нужно добавить</h2>
+        <div id="profile-missing-list" class="tag-list"></div>
+      </section>
+
+      <section class="agent-section">
+        <h2>Вопросы агента</h2>
+        <div id="profile-questions-list" class="agent-questions"></div>
+      </section>
+
+      <section class="agent-section">
+        <h2>Что сделать сейчас</h2>
+        <ul id="profile-recommendations-list" class="agent-recommendations"></ul>
+      </section>
+    </div>
+  </section>
+
+  <dialog id="prompt-dialog" class="prompt-dialog">
+    <div class="prompt-dialog-header">
+      <div>
+        <h2>Промпт проверки</h2>
+        <p id="prompt-dialog-agent" class="field-hint"></p>
+      </div>
+      <button class="btn btn-ghost" type="button" data-close-prompt>Закрыть</button>
+    </div>
+    <div id="prompt-dialog-error" class="error-text" hidden></div>
+    <textarea id="prompt-preview-text" class="prompt-preview-text" readonly></textarea>
+    <div class="form-actions">
+      <button id="copy-prompt-button" class="btn btn-primary" type="button">Скопировать промпт</button>
+    </div>
+  </dialog>
 {% endblock %}
 
 {% block scripts %}
   <script>
+    const lastProfileAnalysis = {{ last_profile_analysis | tojson }};
     const summary = document.getElementById("summary_raw");
     const statusEl = document.getElementById("autosave-status");
+    const profileForm = document.querySelector(".profile-form");
     let autosaveTimer;
 
     function setAutosaveStatus(text, state) {
@@ -115,10 +178,177 @@
       setAutosaveStatus("Сохранено", "saved");
     }
 
+    async function saveProfileBeforeAnalysis() {
+      const response = await fetch("/profile", {
+        method: "POST",
+        body: new FormData(profileForm),
+      });
+      if (!response.ok) {
+        throw new Error("Не удалось сохранить профиль перед проверкой");
+      }
+      setAutosaveStatus("Сохранено", "saved");
+    }
+
     summary.addEventListener("input", () => {
       setAutosaveStatus("Есть изменения", "dirty");
       window.clearTimeout(autosaveTimer);
       autosaveTimer = window.setTimeout(autosaveSummary, 2000);
     });
+
+    const profileAnalyzeButton = document.getElementById("profile-analyze-button");
+    const profileAgentLoading = document.getElementById("profile-agent-loading");
+    const profileAgentError = document.getElementById("profile-agent-error");
+    const profileAgentResult = document.getElementById("profile-agent-result");
+    const promptDialog = document.getElementById("prompt-dialog");
+    const promptDialogAgent = document.getElementById("prompt-dialog-agent");
+    const promptDialogError = document.getElementById("prompt-dialog-error");
+    const promptPreviewText = document.getElementById("prompt-preview-text");
+    const copyPromptButton = document.getElementById("copy-prompt-button");
+
+    if (lastProfileAnalysis && lastProfileAnalysis.result) {
+      renderProfileAnalysis(lastProfileAnalysis.result);
+      profileAgentResult.hidden = false;
+    }
+
+    profileAnalyzeButton?.addEventListener("click", async () => {
+      window.clearTimeout(autosaveTimer);
+      profileAnalyzeButton.disabled = true;
+      profileAgentLoading.hidden = false;
+      profileAgentError.hidden = true;
+      profileAgentResult.hidden = true;
+
+      try {
+        await saveProfileBeforeAnalysis();
+        const response = await fetch("/agent/analyze/profile", { method: "POST" });
+        const payload = await response.json();
+        if (!response.ok || payload.status !== "ok") {
+          throw new Error(payload.error || "Агент не смог проверить профиль");
+        }
+        renderProfileAnalysis(payload.result);
+        profileAgentResult.hidden = false;
+      } catch (error) {
+        profileAgentError.textContent = error.message;
+        profileAgentError.hidden = false;
+      } finally {
+        profileAgentLoading.hidden = true;
+        profileAnalyzeButton.disabled = false;
+      }
+    });
+
+    document.querySelectorAll(".analysis-prompt-btn").forEach((promptButton) => {
+      promptButton.addEventListener("click", async () => {
+        window.clearTimeout(autosaveTimer);
+        await saveProfileBeforeAnalysis();
+        await showAnalysisPrompt(promptButton);
+      });
+    });
+
+    document.querySelector("[data-close-prompt]")?.addEventListener("click", () => {
+      promptDialog.close();
+    });
+
+    copyPromptButton?.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(promptPreviewText.value);
+      flash("Промпт скопирован");
+    });
+
+    async function showAnalysisPrompt(button) {
+      promptDialogError.hidden = true;
+      promptDialogError.textContent = "";
+      promptDialogAgent.textContent = "";
+      promptPreviewText.value = "Собираю промпт...";
+      promptDialog.showModal();
+
+      const data = new FormData();
+      data.append("target_type", button.dataset.promptTargetType || "");
+      if (button.dataset.promptTargetId) {
+        data.append("target_id", button.dataset.promptTargetId);
+      }
+
+      try {
+        const response = await fetch("/agent/preview-prompt", {
+          method: "POST",
+          body: data,
+        });
+        const payload = await response.json();
+        if (!response.ok || payload.status !== "ok") {
+          throw new Error(payload.error || "Не удалось собрать промпт");
+        }
+        promptDialogAgent.textContent = `Агент: ${payload.agent}`;
+        promptPreviewText.value = payload.prompt || "";
+      } catch (error) {
+        promptPreviewText.value = "";
+        promptDialogError.textContent = error.message;
+        promptDialogError.hidden = false;
+      }
+    }
+
+    function renderProfileAnalysis(result) {
+      const score = Math.max(0, Math.min(100, Number(result.overall_score || 0)));
+      document.getElementById("profile-score-value").textContent = `${score}%`;
+      document.getElementById("profile-score-fill").style.width = `${score}%`;
+      renderProfileTags("profile-missing-list", result.missing_critical, "Критичных пробелов не найдено");
+      renderProfileQuestions(result.questions || []);
+      renderProfileRecommendations(result.recommendations || []);
+    }
+
+    function renderProfileTags(rootId, items, emptyText) {
+      const root = document.getElementById(rootId);
+      root.replaceChildren();
+      if (!items || !items.length) {
+        const empty = document.createElement("span");
+        empty.className = "muted-line";
+        empty.textContent = emptyText;
+        root.appendChild(empty);
+        return;
+      }
+      items.forEach((item) => {
+        const tag = document.createElement("span");
+        tag.className = "analysis-tag";
+        tag.textContent = item;
+        root.appendChild(tag);
+      });
+    }
+
+    function renderProfileQuestions(items) {
+      const root = document.getElementById("profile-questions-list");
+      root.replaceChildren();
+      if (!items.length) {
+        const empty = document.createElement("p");
+        empty.className = "muted-line";
+        empty.textContent = "Вопросов нет";
+        root.appendChild(empty);
+        return;
+      }
+      items.forEach((item) => {
+        const card = document.createElement("article");
+        card.className = "agent-question";
+        const text = document.createElement("p");
+        text.textContent = item.text || "";
+        const link = document.createElement("a");
+        link.className = "btn btn-ghost";
+        link.href = item.target_url || "/profile";
+        link.textContent = item.target_label || "Перейти";
+        card.append(text, link);
+        root.appendChild(card);
+      });
+    }
+
+    function renderProfileRecommendations(items) {
+      const root = document.getElementById("profile-recommendations-list");
+      root.replaceChildren();
+      if (!items.length) {
+        const empty = document.createElement("li");
+        empty.className = "muted-line";
+        empty.textContent = "Рекомендаций нет";
+        root.appendChild(empty);
+        return;
+      }
+      items.forEach((item) => {
+        const li = document.createElement("li");
+        li.textContent = item;
+        root.appendChild(li);
+      });
+    }
   </script>
 {% endblock %}

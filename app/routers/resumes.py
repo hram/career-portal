@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import SessionLocal
 from app.models.models import GeneratedResume, Profile, ResumeTemplate
-from app.services.ai_agent import AIAgentError, generate_resume
+from app.services.ai_agent import AIAgentError, build_resume_prompt_preview, generate_resume
 from app.services.settings import get_ai_agent
 
 
@@ -78,7 +78,7 @@ async def create_generated_resume(request: Request):
         roles = _load_roles(db, profile.id)
         selected_agent = get_ai_agent(db)
 
-        if template_id is None or not vacancy_text:
+        if template_id is None:
             return templates.TemplateResponse(
                 "generate.html",
                 {
@@ -92,7 +92,7 @@ async def create_generated_resume(request: Request):
                         "vacancy_url": vacancy_url,
                         "vacancy_text": vacancy_text,
                     },
-                    "flash_error": "Выбери роль и вставь текст вакансии",
+                    "flash_error": "Выбери роль",
                 },
                 status_code=400,
             )
@@ -151,6 +151,42 @@ async def create_generated_resume(request: Request):
         db.refresh(generated)
 
     return RedirectResponse(f"/resumes/{generated.id}?created=1", status_code=303)
+
+
+@router.post("/generate/preview-prompt")
+async def preview_generate_prompt(request: Request):
+    form = await request.form()
+    template_id = _int_or_none(form.get("template_id"))
+    if template_id is None:
+        return JSONResponse({"status": "error", "error": "Выбери роль"}, status_code=400)
+
+    vacancy_text = str(form.get("vacancy_text") or "").strip()
+    company_name = str(form.get("company_name") or "").strip()
+    vacancy_url = str(form.get("vacancy_url") or "").strip()
+
+    with SessionLocal() as db:
+        profile = get_profile(db)
+        selected_agent = get_ai_agent(db)
+        try:
+            prompt = build_resume_prompt_preview(
+                db,
+                profile_id=profile.id,
+                template_id=template_id,
+                vacancy_text=vacancy_text,
+                company_name=company_name,
+                vacancy_url=vacancy_url,
+                provider=selected_agent,
+            )
+        except AIAgentError as exc:
+            return JSONResponse({"status": "error", "error": str(exc)}, status_code=404)
+
+    return JSONResponse(
+        {
+            "status": "ok",
+            "agent": selected_agent,
+            "prompt": prompt,
+        }
+    )
 
 
 @router.get("/resumes")

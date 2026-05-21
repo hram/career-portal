@@ -30,6 +30,18 @@ def analyze_profile(db: Session, profile_id: int = 1, provider: str | None = Non
     return _normalize_analysis(raw)
 
 
+def analyze_profile_only(db: Session, profile_id: int = 1, provider: str | None = None) -> dict:
+    selected_provider = normalize_ai_agent(provider)
+    context = build_profile_only_context(db, profile_id)
+    raw = _run_analysis_prompt(
+        selected_provider,
+        prompt=_build_profile_only_analysis_prompt(context, selected_provider),
+        file_prompt_builder=_build_profile_only_analysis_file_prompt,
+        context=context,
+    )
+    return _normalize_analysis(raw)
+
+
 def analyze_job(db: Session, job_id: int, provider: str | None = None) -> dict:
     selected_provider = normalize_ai_agent(provider)
     context = build_job_context(db, job_id)
@@ -39,7 +51,7 @@ def analyze_job(db: Session, job_id: int, provider: str | None = None) -> dict:
         file_prompt_builder=_build_job_analysis_file_prompt,
         context=context,
     )
-    return _normalize_analysis(raw)
+    return _normalize_job_analysis(raw)
 
 
 def analyze_project(db: Session, project_id: int, provider: str | None = None) -> dict:
@@ -52,6 +64,30 @@ def analyze_project(db: Session, project_id: int, provider: str | None = None) -
         context=context,
     )
     return _normalize_project_analysis(raw)
+
+
+def build_analysis_prompt_preview(
+    db: Session,
+    *,
+    target_type: str,
+    target_id: int | None = None,
+    profile_id: int = 1,
+    provider: str | None = None,
+) -> str:
+    selected_provider = normalize_ai_agent(provider)
+    if target_type == "profile":
+        return _build_analysis_prompt(build_profile_context(db, profile_id), selected_provider)
+    if target_type == "profile_only":
+        return _build_profile_only_analysis_prompt(build_profile_only_context(db, profile_id), selected_provider)
+    if target_type == "job":
+        if target_id is None:
+            raise AIAgentError("Не указан ID места работы")
+        return _build_job_analysis_prompt(build_job_context(db, target_id), selected_provider)
+    if target_type == "project":
+        if target_id is None:
+            raise AIAgentError("Не указан ID проекта")
+        return _build_project_analysis_prompt(build_project_context(db, target_id), selected_provider)
+    raise AIAgentError("Неизвестный тип проверки")
 
 
 def generate_resume(
@@ -109,6 +145,35 @@ def generate_resume(
     if not markdown:
         raise AIAgentError("ИИ-агент вернул пустое резюме")
     return markdown
+
+
+def build_resume_prompt_preview(
+    db: Session,
+    profile_id: int,
+    template_id: int,
+    vacancy_text: str,
+    company_name: str | None = None,
+    vacancy_url: str | None = None,
+    provider: str | None = None,
+) -> str:
+    selected_provider = normalize_ai_agent(provider)
+    template = db.scalar(
+        select(ResumeTemplate).where(
+            ResumeTemplate.id == template_id,
+            ResumeTemplate.profile_id == profile_id,
+        )
+    )
+    if template is None:
+        raise AIAgentError("Роль не найдена")
+
+    return _build_resume_generation_prompt(
+        context=build_profile_context(db, profile_id),
+        template=template,
+        vacancy_text=vacancy_text,
+        company_name=company_name,
+        vacancy_url=vacancy_url,
+        provider=selected_provider,
+    )
 
 
 def _run_analysis_prompt(selected_provider: str, *, prompt: str, file_prompt_builder, context: str) -> dict:
@@ -219,6 +284,27 @@ def build_profile_context(db: Session, profile_id: int = 1) -> str:
     return "\n\n".join(parts)
 
 
+def build_profile_only_context(db: Session, profile_id: int = 1) -> str:
+    profile = db.scalar(select(Profile).where(Profile.id == profile_id))
+    if profile is None:
+        return "# Проверяем профиль кандидата\n\nПрофиль пока пуст."
+
+    return "\n".join(
+        [
+            "# Проверяем профиль кандидата",
+            "## Личные данные",
+            f"Имя: {profile.full_name or ''}",
+            f"Email: {profile.email or ''}",
+            f"Телефон: {profile.phone or ''}",
+            f"Локация: {profile.location or ''}",
+            f"LinkedIn: {profile.linkedin_url or ''}",
+            f"GitHub: {profile.github_url or ''}",
+            f"Telegram: {profile.telegram or ''}",
+            f"О себе: {profile.summary_raw or ''}",
+        ]
+    )
+
+
 def build_job_context(db: Session, job_id: int) -> str:
     job = db.scalar(
         select(Job)
@@ -309,6 +395,22 @@ def _build_analysis_file_prompt(context_path: Path) -> str:
 """
 
 
+def _build_profile_only_analysis_prompt(context: str, provider: str) -> str:
+    return f"""{_profile_only_analysis_instructions(provider)}
+
+Контекст:
+{context}
+"""
+
+
+def _build_profile_only_analysis_file_prompt(context_path: Path) -> str:
+    return f"""{_profile_only_analysis_instructions("claude-cli")}
+
+Прочитай контекст из файла:
+{context_path}
+"""
+
+
 def _build_job_analysis_prompt(context: str, provider: str) -> str:
     return f"""{_job_analysis_instructions(provider)}
 
@@ -359,7 +461,7 @@ def _build_resume_generation_prompt(
 Компания: {company_name or "не указана"}
 Ссылка: {vacancy_url or "не указана"}
 Текст вакансии:
-{vacancy_text}
+{vacancy_text or "Вакансия не указана. Сгенерируй универсальное резюме под выбранную роль."}
 """
 
 
@@ -381,7 +483,7 @@ def _build_resume_generation_file_prompt(
 Компания: {company_name or "не указана"}
 Ссылка: {vacancy_url or "не указана"}
 Текст вакансии:
-{vacancy_text}
+{vacancy_text or "Вакансия не указана. Сгенерируй универсальное резюме под выбранную роль."}
 """
 
 
@@ -442,24 +544,69 @@ def _analysis_instructions(provider: str) -> str:
     {{
       "text": "",
       "target_url": "/jobs",
-      "target_label": "Перейти"
+      "target_label": "Перейти",
+      "project_id": 22
     }}
   ],
   "weak_points": [],
   "strengths": [],
-  "recommendations": []
+  "recommendations": [],
+  "ats_keywords_missing": [],
+  "ats_keywords_present": [],
+  "empty_projects": []
 }}
 
 Правила:
-- overall_score: число 0-100, насколько полна база.
+- {_overall_score_scale("база знаний")}
 - missing_critical: короткие конкретные пункты, чего критически не хватает.
-- questions: конкретные вопросы, которые нужно задать кандидату.
+- {_questions_rule()}
 - Если вопрос относится к Job ID или Project ID, target_url поставь соответствующий путь из контекста.
+- project_id: необязательно, указывай если вопрос относится к конкретному проекту.
 - weak_points: что выглядит слабо или расплывчато.
 - strengths: что выглядит сильно.
-- recommendations: что сделать прямо сейчас.
+- {_recommendations_rule("этой базы знаний")}
+- {_ats_keywords_rule()}
+- {_empty_projects_rule()}
 - Будь конкретным. Не давай общих советов.
 - Не выдумывай факты, которых нет в базе.
+"""
+
+
+def _profile_only_analysis_instructions(provider: str) -> str:
+    return f"""Ты — карьерный консультант и редактор профиля кандидата.
+Проверь только личный профиль кандидата: имя, контакты, локацию, ссылки и раздел "О себе".
+Не анализируй опыт работы, проекты, навыки, образование и заметки.
+Используемый инструмент: {provider}.
+
+Верни ТОЛЬКО валидный JSON без markdown и текста вокруг:
+{{
+  "overall_score": 75,
+  "missing_critical": [],
+  "questions": [
+    {{
+      "text": "",
+      "target_url": "/profile",
+      "target_label": "Перейти к профилю"
+    }}
+  ],
+  "weak_points": [],
+  "strengths": [],
+  "recommendations": [],
+  "ats_keywords_missing": [],
+  "ats_keywords_present": []
+}}
+
+Правила:
+- {_overall_score_scale("профиль")}
+- Проверь, есть ли имя, email, телефон, локация и релевантные публичные ссылки.
+- Проверь, достаточно ли "О себе" объясняет позиционирование, целевую роль, seniority, формат работы и карьерные ограничения.
+- {_questions_rule()}
+- Вопросы должны относиться только к полям профиля.
+- target_url всегда ставь "/profile".
+- {_ats_keywords_rule()}
+- {_recommendations_rule("этого профиля")}
+- Не требуй данных, которые относятся к отдельным местам работы, проектам, навыкам или образованию.
+- Не выдумывай факты, которых нет в профиле.
 """
 
 
@@ -476,20 +623,33 @@ def _job_analysis_instructions(provider: str) -> str:
     {{
       "text": "",
       "target_url": "/jobs/1",
-      "target_label": "Перейти"
+      "target_label": "Перейти",
+      "project_id": 22
     }}
   ],
   "weak_points": [],
   "strengths": [],
-  "recommendations": []
+  "recommendations": [],
+  "ats_keywords_missing": [],
+  "ats_keywords_present": [],
+  "empty_projects": [],
+  "suggested_job_summary": ""
 }}
 
 Правила:
+- {_overall_score_scale("место работы")}
 - Оцени, насколько это место работы готово для генерации резюме.
 - Проверь цельность периода: понятна ли роль, рост, ответственность, вклад.
+- Проверь нарратив: виден ли рост ответственности за период? Есть ли переход от исполнителя к лидеру? Если роль не менялась — это нормально, но должно быть видно масштабирование влияния.
 - Проверь проекты: не дублируются ли, какие проекты пустые, где нет метрик/стека/роли.
+- {_questions_rule()}
 - Вопросы должны быть конкретными и относиться только к этому месту работы.
+- project_id: необязательно, указывай если вопрос относится к конкретному проекту.
 - target_url ставь на страницу места работы из контекста.
+- {_ats_keywords_rule()}
+- {_recommendations_rule("этого места работы")}
+- {_empty_projects_rule()}
+- suggested_job_summary: предложи 2-3 предложения для шапки блока компании в резюме. Активные глаголы, масштаб, роль.
 - Не анализируй всю карьеру, только это место работы.
 """
 
@@ -507,12 +667,15 @@ def _project_analysis_instructions(provider: str) -> str:
     {{
       "text": "",
       "target_url": "/jobs/1",
-      "target_label": "Перейти к проекту"
+      "target_label": "Перейти к проекту",
+      "project_id": 22
     }}
   ],
   "weak_points": [],
   "strengths": [],
   "recommendations": [],
+  "ats_keywords_missing": [],
+  "ats_keywords_present": [],
   "suggested_edits": {{
     "raw_description": "",
     "tech_stack": "",
@@ -523,13 +686,58 @@ def _project_analysis_instructions(provider: str) -> str:
 }}
 
 Правила:
+- {_overall_score_scale("проект")}
 - Оцени, насколько конкретный проект готов для использования в резюме.
 - Проверь поля: описание, стек, результаты/метрики, роль, команда.
+- {_questions_rule()}
 - Вопросы должны помогать дозаполнить именно этот проект.
+- project_id: необязательно, указывай если вопрос относится к конкретному проекту.
 - suggested_edits заполняй только если можно улучшить формулировку без выдумывания фактов. Если фактов не хватает — оставь пустую строку и задай вопрос.
+- suggested_edits: переформулируй для резюме — активные глаголы, конкретика, без воды. Стиль: "Спроектировал X, что привело к Y".
 - target_url ставь на страницу места работы из контекста.
+- {_ats_keywords_rule()}
+- {_recommendations_rule("этого проекта")}
 - Не анализируй всю карьеру, только этот проект.
 """
+
+
+def _overall_score_scale(subject: str) -> str:
+    return f"""overall_score: число 0-100, насколько {subject} готов(а) для использования в резюме. Используй шкалу:
+  0-40: нельзя использовать в резюме, критически мало данных.
+  41-65: можно, но слабо — нет метрик или роли.
+  66-85: хорошо, есть всё основное.
+  86-100: отлично, конкретные метрики + роль + стек + результат.
+Не ориентируйся на значение 75 из JSON-примера, это только пример формата."""
+
+
+def _questions_rule() -> str:
+    return (
+        "questions: максимум 3 вопроса, только самые важные для резюме. "
+        "Сортируй по важности: метрики > роль > контекст. "
+        "Каждый вопрос должен быть конкретным и проверяемым."
+    )
+
+
+def _ats_keywords_rule() -> str:
+    return (
+        "ats_keywords_missing: важные ATS-ключевые слова для этой роли/контекста, которых нет или которые слабо выражены. "
+        "ats_keywords_present: сильные ATS-ключевые слова, которые уже есть в данных. "
+        "Указывай только слова и короткие фразы, полезные для HR-фильтров и поиска."
+    )
+
+
+def _recommendations_rule(subject_phrase: str) -> str:
+    return (
+        f"recommendations: максимум 3 конкретных действия, которые повысят overall_score именно {subject_phrase}. "
+        "Только то, что можно сделать прямо сейчас."
+    )
+
+
+def _empty_projects_rule() -> str:
+    return (
+        "empty_projects: список project_id, где данных критически мало: нет описания, нет стека "
+        "или нет результатов/метрик. Указывай только ID проектов из контекста."
+    )
 
 
 def _normalize_analysis(payload: dict) -> dict:
@@ -537,10 +745,13 @@ def _normalize_analysis(payload: dict) -> dict:
     return {
         "overall_score": _clamp_score(payload.get("overall_score")),
         "missing_critical": _string_list(payload.get("missing_critical")),
-        "questions": [_normalize_question(item) for item in questions],
+        "questions": [_normalize_question(item) for item in questions[:3]],
         "weak_points": _string_list(payload.get("weak_points")),
         "strengths": _string_list(payload.get("strengths")),
-        "recommendations": _string_list(payload.get("recommendations")),
+        "recommendations": _string_list(payload.get("recommendations"))[:3],
+        "ats_keywords_missing": _string_list(payload.get("ats_keywords_missing")),
+        "ats_keywords_present": _string_list(payload.get("ats_keywords_present")),
+        "empty_projects": _int_list(payload.get("empty_projects")),
     }
 
 
@@ -557,6 +768,12 @@ def _normalize_project_analysis(payload: dict) -> dict:
     return result
 
 
+def _normalize_job_analysis(payload: dict) -> dict:
+    result = _normalize_analysis(payload)
+    result["suggested_job_summary"] = str(payload.get("suggested_job_summary") or "")
+    return result
+
+
 def _normalize_question(item: object) -> dict:
     if isinstance(item, str):
         return {"text": item, "target_url": "/jobs", "target_label": "Перейти к проектам"}
@@ -568,17 +785,39 @@ def _normalize_question(item: object) -> dict:
     if not target_url.startswith("/"):
         target_url = "/jobs"
     target_label = str(item.get("target_label") or "Перейти").strip()
-    return {
+    question = {
         "text": text,
         "target_url": target_url,
         "target_label": target_label,
     }
+    project_id = _int_or_none(item.get("project_id"))
+    if project_id is not None:
+        question["project_id"] = project_id
+    return question
+
+
+def _int_or_none(value: object) -> int | None:
+    try:
+        return int(str(value))
+    except (TypeError, ValueError):
+        return None
 
 
 def _string_list(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
     return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _int_list(value: object) -> list[int]:
+    if not isinstance(value, list):
+        return []
+    result = []
+    for item in value:
+        number = _int_or_none(item)
+        if number is not None:
+            result.append(number)
+    return result
 
 
 def _clamp_score(value: object) -> int:

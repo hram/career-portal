@@ -20,7 +20,10 @@
           {% endif %}
         </p>
       </div>
-      <button id="analyze-button" class="btn btn-primary" type="button">Проверить базу знаний</button>
+      <div class="action-group">
+        <button id="analyze-button" class="btn btn-primary" type="button">Проверить базу знаний</button>
+        <button class="btn btn-ghost analysis-prompt-btn" type="button" data-prompt-target-type="profile">Посмотреть промпт</button>
+      </div>
     </div>
 
     <div id="agent-loading" class="agent-loading" hidden>
@@ -66,6 +69,21 @@
       </section>
     </div>
   </section>
+
+  <dialog id="prompt-dialog" class="prompt-dialog">
+    <div class="prompt-dialog-header">
+      <div>
+        <h2>Промпт проверки</h2>
+        <p id="prompt-dialog-agent" class="field-hint"></p>
+      </div>
+      <button class="btn btn-ghost" type="button" data-close-prompt>Закрыть</button>
+    </div>
+    <div id="prompt-dialog-error" class="error-text" hidden></div>
+    <textarea id="prompt-preview-text" class="prompt-preview-text" readonly></textarea>
+    <div class="form-actions">
+      <button id="copy-prompt-button" class="btn btn-primary" type="button">Скопировать промпт</button>
+    </div>
+  </dialog>
 {% endblock %}
 
 {% block scripts %}
@@ -75,6 +93,11 @@
     const loading = document.getElementById("agent-loading");
     const errorBox = document.getElementById("agent-error");
     const resultBox = document.getElementById("agent-result");
+    const promptDialog = document.getElementById("prompt-dialog");
+    const promptDialogAgent = document.getElementById("prompt-dialog-agent");
+    const promptDialogError = document.getElementById("prompt-dialog-error");
+    const promptPreviewText = document.getElementById("prompt-preview-text");
+    const copyPromptButton = document.getElementById("copy-prompt-button");
 
     button.addEventListener("click", async () => {
       button.disabled = true;
@@ -102,6 +125,50 @@
     if (lastAnalysis && lastAnalysis.result) {
       renderAnalysis(lastAnalysis.result);
       resultBox.hidden = false;
+    }
+
+    document.querySelectorAll(".analysis-prompt-btn").forEach((promptButton) => {
+      promptButton.addEventListener("click", () => showAnalysisPrompt(promptButton));
+    });
+
+    document.querySelector("[data-close-prompt]")?.addEventListener("click", () => {
+      promptDialog.close();
+    });
+
+    copyPromptButton?.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(promptPreviewText.value);
+      flash("Промпт скопирован");
+    });
+
+    async function showAnalysisPrompt(button) {
+      promptDialogError.hidden = true;
+      promptDialogError.textContent = "";
+      promptDialogAgent.textContent = "";
+      promptPreviewText.value = "Собираю промпт...";
+      promptDialog.showModal();
+
+      const data = new FormData();
+      data.append("target_type", button.dataset.promptTargetType || "");
+      if (button.dataset.promptTargetId) {
+        data.append("target_id", button.dataset.promptTargetId);
+      }
+
+      try {
+        const response = await fetch("/agent/preview-prompt", {
+          method: "POST",
+          body: data,
+        });
+        const payload = await response.json();
+        if (!response.ok || payload.status !== "ok") {
+          throw new Error(payload.error || "Не удалось собрать промпт");
+        }
+        promptDialogAgent.textContent = `Агент: ${payload.agent}`;
+        promptPreviewText.value = payload.prompt || "";
+      } catch (error) {
+        promptPreviewText.value = "";
+        promptDialogError.textContent = error.message;
+        promptDialogError.hidden = false;
+      }
     }
 
     function renderAnalysis(result) {
