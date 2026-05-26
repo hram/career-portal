@@ -34,8 +34,14 @@
         </select>
       </label>
 
+      <label>
+        <span>Поисковый запрос hh.ru</span>
+        <input type="text" name="hh_search_query" value="{{ role.hh_search_query or '' }}" placeholder="Android Tech Lead Kotlin remote">
+      </label>
+
       <div class="form-actions split-actions">
         <button class="btn btn-primary" type="submit">Сохранить</button>
+        <a class="btn btn-ghost" href="/roles/{{ role.id }}/hh">Искать на hh.ru</a>
         <a class="btn btn-ghost" href="/generate?template_id={{ role.id }}">Создать резюме</a>
         <a class="btn btn-ghost" href="/roles">Назад к ролям</a>
       </div>

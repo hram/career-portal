@@ -727,6 +727,112 @@ details > summary::-webkit-details-marker {
   max-width: none;
 }
 
+.hh-search-panel,
+.hh-auth-panel,
+.hh-saved-section,
+.hh-results {
+  max-width: 1180px;
+  margin-bottom: 22px;
+}
+
+.hh-auth-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 18px 20px;
+}
+
+.hh-auth-panel h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+.hh-auth-panel p {
+  margin: 0;
+}
+
+.hh-auth-panel form {
+  display: block;
+  max-width: none;
+}
+
+.hh-search-panel {
+  padding: 20px;
+}
+
+.hh-search-form {
+  grid-template-columns: minmax(280px, 1fr) minmax(180px, 0.35fr) auto;
+  align-items: end;
+  max-width: 100%;
+}
+
+.hh-results,
+.hh-saved-list {
+  display: grid;
+  gap: 12px;
+}
+
+.hh-vacancy-card,
+.hh-saved-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  padding: 16px;
+}
+
+.hh-vacancy-main {
+  display: grid;
+  gap: 8px;
+}
+
+.hh-vacancy-main h3,
+.hh-saved-card h3 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+.hh-vacancy-main p,
+.hh-saved-card p {
+  margin: 0;
+}
+
+.hh-vacancy-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.hh-vacancy-meta span {
+  padding: 4px 8px;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-hover);
+}
+
+.hh-vacancy-actions {
+  display: grid;
+  gap: 10px;
+  justify-items: stretch;
+}
+
+.hh-vacancy-actions form {
+  display: block;
+  max-width: none;
+}
+
+.pagination-row {
+  display: flex;
+  gap: 10px;
+  padding-top: 6px;
+}
+
 .vacancy-textarea {
   min-height: 360px;
 }
@@ -1497,7 +1603,11 @@ details > summary::-webkit-details-marker {
   }
 
   .profile-form,
-  .form-grid {
+  .form-grid,
+  .hh-auth-panel,
+  .hh-search-form,
+  .hh-vacancy-card,
+  .hh-saved-card {
     grid-template-columns: 1fr;
   }
 

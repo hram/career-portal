@@ -36,6 +36,11 @@
           </select>
         </label>
 
+        <label>
+          <span>Поисковый запрос hh.ru</span>
+          <input type="text" name="hh_search_query" placeholder="Android Tech Lead Kotlin remote">
+        </label>
+
         <button class="btn btn-primary" type="submit">Создать роль</button>
       </form>
     </details>
@@ -65,8 +70,14 @@
           <p>{{ role.tone or "смешанный" }}</p>
         </div>
 
+        <div class="role-meta">
+          <span>Поиск hh.ru</span>
+          <p>{{ role.hh_search_query or role.name }}</p>
+        </div>
+
         <div class="role-actions">
           <a class="btn btn-ghost" href="/roles/{{ role.id }}/edit">Редактировать</a>
+          <a class="btn btn-ghost" href="/roles/{{ role.id }}/hh">Искать на hh.ru</a>
           <a class="btn btn-primary" href="/generate?template_id={{ role.id }}">Создать резюме</a>
           <button class="btn btn-danger" type="button" onclick="confirmDelete('/roles/{{ role.id }}', {{ role.name | tojson }})">Удалить</button>
         </div>

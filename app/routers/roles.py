@@ -1,4 +1,5 @@
 from pathlib import Path
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -69,6 +70,7 @@ async def create_role(request: Request):
             description=str(form.get("description") or "").strip() or None,
             focus_areas=focus_areas,
             tone=str(form.get("tone") or "").strip() or None,
+            hh_search_query=str(form.get("hh_search_query") or "").strip() or None,
             is_default=False,
         )
         db.add(role)
@@ -105,6 +107,7 @@ async def update_role(request: Request, role_id: int):
         role.description = str(form.get("description") or "").strip() or None
         role.focus_areas = focus_areas
         role.tone = str(form.get("tone") or "").strip() or None
+        role.hh_search_query = str(form.get("hh_search_query") or "").strip() or None
         db.commit()
 
     return RedirectResponse("/roles", status_code=303)
@@ -118,3 +121,11 @@ async def delete_role(role_id: int):
             db.delete(role)
             db.commit()
     return JSONResponse({"status": "ok"})
+
+
+@router.get("/roles/{role_id}/hh")
+async def search_role_on_hh(role_id: int):
+    with SessionLocal() as db:
+        role = get_role_or_404(db, role_id)
+        query = role.hh_search_query or role.name
+    return RedirectResponse(f"/hh?{urlencode({'text': query})}", status_code=303)

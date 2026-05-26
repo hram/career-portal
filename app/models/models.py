@@ -45,6 +45,10 @@ class Profile(Base):
         back_populates="profile",
         cascade="all, delete-orphan",
     )
+    saved_vacancies: Mapped[list["SavedVacancy"]] = relationship(
+        back_populates="profile",
+        cascade="all, delete-orphan",
+    )
     agent_analyses: Mapped[list["AgentAnalysis"]] = relationship(
         back_populates="profile",
         cascade="all, delete-orphan",
@@ -140,6 +144,7 @@ class ResumeTemplate(Base):
     description: Mapped[str | None] = mapped_column(Text)
     focus_areas: Mapped[str | None] = mapped_column(Text)
     tone: Mapped[str | None] = mapped_column(String(100))
+    hh_search_query: Mapped[str | None] = mapped_column(String(255))
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
@@ -167,6 +172,26 @@ class GeneratedResume(Base):
 
     profile: Mapped["Profile"] = relationship(back_populates="generated_resumes")
     template: Mapped["ResumeTemplate | None"] = relationship(back_populates="generated_resumes")
+
+
+class SavedVacancy(Base):
+    __tablename__ = "saved_vacancies"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    profile_id: Mapped[int] = mapped_column(ForeignKey("profiles.id"), nullable=False)
+    hh_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    company_name: Mapped[str | None] = mapped_column(String(255))
+    area_name: Mapped[str | None] = mapped_column(String(255))
+    salary_text: Mapped[str | None] = mapped_column(String(255))
+    vacancy_url: Mapped[str | None] = mapped_column(String(500))
+    api_url: Mapped[str | None] = mapped_column(String(500))
+    published_at: Mapped[str | None] = mapped_column(String(100))
+    description_text: Mapped[str | None] = mapped_column(Text)
+    raw_json: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    profile: Mapped["Profile"] = relationship(back_populates="saved_vacancies")
 
 
 class AgentAnalysis(Base):

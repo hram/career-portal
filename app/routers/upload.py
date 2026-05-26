@@ -1,5 +1,6 @@
 import json
 import asyncio
+import os
 import uuid
 from pathlib import Path
 
@@ -18,7 +19,7 @@ router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-UPLOAD_DIR = PROJECT_ROOT / "uploads"
+UPLOAD_DIR = Path(os.getenv("CAREER_PORTAL_UPLOAD_DIR", PROJECT_ROOT / "uploads")).expanduser()
 PREVIEW_DIR = UPLOAD_DIR / "previews"
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 ALLOWED_SUFFIXES = {".pdf", ".docx"}

@@ -14,7 +14,10 @@
         <h2>Параметры генерации</h2>
         <p class="field-hint">Агент: {{ selected_agent }}</p>
       </div>
-      <a class="btn btn-ghost" href="/settings">Настройки агента</a>
+      <div class="action-group">
+        <a class="btn btn-ghost" href="/hh">Найти вакансию на hh.ru</a>
+        <a class="btn btn-ghost" href="/settings">Настройки агента</a>
+      </div>
     </div>
 
     <form id="generate-form" class="generate-form" method="post" action="/generate">

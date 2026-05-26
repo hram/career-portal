@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from app.database import Base, SessionLocal, engine, seed_database
 from app.models.models import GeneratedResume, Job, Project
 from app.routers.agent import router as agent_router
+from app.routers.hh import router as hh_router
 from app.routers.jobs import router as jobs_router
 from app.routers.profile import router as profile_router
 from app.routers.resumes import router as resumes_router
@@ -23,6 +24,7 @@ app = FastAPI(title="Career Portal")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 app.include_router(agent_router)
+app.include_router(hh_router)
 app.include_router(jobs_router)
 app.include_router(profile_router)
 app.include_router(resumes_router)

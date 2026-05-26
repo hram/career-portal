@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}Вакансии hh.ru · Career Portal{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <p class="eyebrow">Вакансии</p>
+    <h1>Поиск вакансий на hh.ru</h1>
+  </section>
+
+  <section class="card hh-auth-panel">
+    <div>
+      <h2>Авторизация hh.ru</h2>
+      {% if hh_auth.connected %}
+        <p class="muted-line">
+          Подключено{% if hh_auth.account %}: {{ hh_auth.account }}{% endif %}
+          {% if hh_auth.expires_at_text %} · токен до {{ hh_auth.expires_at_text }}{% endif %}
+        </p>
+      {% elif hh_auth.configured %}
+        <p class="muted-line">Client ID и Secret найдены. Осталось разрешить доступ на hh.ru.</p>
+      {% else %}
+        <p class="muted-line">Заполни HH_CLIENT_ID и HH_CLIENT_SECRET в .env, затем перезапусти приложение.</p>
+      {% endif %}
+    </div>
+    <div class="action-group">
+      {% if hh_auth.connected %}
+        <form method="post" action="/hh/auth/disconnect">
+          <button class="btn btn-ghost" type="submit">Отключить</button>
+        </form>
+      {% endif %}
+      {% if hh_auth.configured %}
+        <a class="btn btn-primary" href="/hh/auth/start">Подключить hh.ru</a>
+      {% else %}
+        <button class="btn btn-primary" type="button" disabled>Подключить hh.ru</button>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="card hh-search-panel">
+    <form class="hh-search-form" method="get" action="/hh">
+      <label>
+        <span>Поисковый запрос</span>
+        <input type="search" name="text" value="{{ query }}" placeholder="Android Tech Lead, Kotlin, remote" required>
+      </label>
+      <label>
+        <span>Регион hh.ru</span>
+        <input type="text" name="area" value="{{ area }}" placeholder="1 — Москва, 113 — Россия">
+      </label>
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">Найти вакансии</button>
+      </div>
+    </form>
+    <p class="field-hint">Redirect URI для приложения hh.ru: `{{ request.url_for("hh_oauth_callback") }}`. Если в .env указан `HH_REDIRECT_URI`, в кабинете hh.ru должен быть тот же адрес.</p>
+  </section>
+
+  {% if results %}
+    <section class="hh-results">
+      <div class="section-row">
+        <h2>Найдено: {{ results.found }}</h2>
+        <span class="muted-line">Страница {{ results.page + 1 }} из {{ results.pages }}</span>
+      </div>
+
+      {% for item in results["items"] %}
+        <article class="card hh-vacancy-card">
+          <div class="hh-vacancy-main">
+            <h3>{{ item.title }}</h3>
+            <div class="hh-vacancy-meta">
+              {% if item.company_name %}<span>{{ item.company_name }}</span>{% endif %}
+              {% if item.area_name %}<span>{{ item.area_name }}</span>{% endif %}
+              {% if item.salary_text %}<span>{{ item.salary_text }}</span>{% endif %}
+            </div>
+            {% if item.requirement or item.responsibility %}
+              <p>{{ item.responsibility or item.requirement }}</p>
+            {% endif %}
+          </div>
+          <div class="hh-vacancy-actions">
+            {% if item.vacancy_url %}
+              <a class="btn btn-ghost" href="{{ item.vacancy_url }}" target="_blank" rel="noreferrer">Открыть на hh.ru</a>
+            {% endif %}
+            <form method="post" action="/hh/vacancies/{{ item.hh_id }}/save">
+              <button class="btn btn-primary" type="submit">Сохранить и создать резюме</button>
+            </form>
+          </div>
+        </article>
+      {% else %}
+        <div class="empty-state compact-empty">
+          <h2>Ничего не найдено</h2>
+          <p>Попробуй изменить запрос или убрать регион.</p>
+        </div>
+      {% endfor %}
+
+      {% if results.pages > 1 %}
+        <div class="pagination-row">
+          {% if results.page > 0 %}
+            <a class="btn btn-ghost" href="/hh?text={{ query | urlencode }}&area={{ area | urlencode }}&page={{ results.page - 1 }}">Назад</a>
+          {% endif %}
+          {% if results.page + 1 < results.pages %}
+            <a class="btn btn-ghost" href="/hh?text={{ query | urlencode }}&area={{ area | urlencode }}&page={{ results.page + 1 }}">Дальше</a>
+          {% endif %}
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <section class="hh-saved-section">
+    <div class="section-row">
+      <h2>Сохранённые вакансии</h2>
+    </div>
+    <div class="hh-saved-list">
+      {% for vacancy in saved_vacancies %}
+        <article class="card hh-saved-card" data-saved-vacancy-id="{{ vacancy.id }}">
+          <div>
+            <h3>{{ vacancy.title }}</h3>
+            <p class="muted-line">
+              {{ vacancy.company_name or "Компания не указана" }}
+              {% if vacancy.area_name %} · {{ vacancy.area_name }}{% endif %}
+              {% if vacancy.salary_text %} · {{ vacancy.salary_text }}{% endif %}
+            </p>
+          </div>
+          <div class="action-group">
+            <a class="btn btn-primary" href="/generate?vacancy_id={{ vacancy.id }}">Создать резюме</a>
+            {% if vacancy.vacancy_url %}
+              <a class="btn btn-ghost" href="{{ vacancy.vacancy_url }}" target="_blank" rel="noreferrer">hh.ru</a>
+            {% endif %}
+            <button class="btn btn-danger" type="button" data-delete-saved-vacancy="{{ vacancy.id }}">Удалить</button>
+          </div>
+        </article>
+      {% else %}
+        <div class="empty-state compact-empty">
+          <h2>Сохранённых вакансий пока нет</h2>
+          <p>Найди вакансию и сохрани её, чтобы быстро подставить текст в генерацию резюме.</p>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    document.querySelectorAll("[data-delete-saved-vacancy]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const id = button.dataset.deleteSavedVacancy;
+        const confirmed = window.confirm("Удалить сохранённую вакансию?");
+        if (!confirmed) return;
+        const response = await fetch(`/hh/vacancies/${id}`, { method: "DELETE" });
+        if (!response.ok) {
+          flash("Не удалось удалить вакансию", "error");
+          return;
+        }
+        button.closest("[data-saved-vacancy-id]")?.remove();
+        flash("Вакансия удалена");
+      });
+    });
+  </script>
+{% endblock %}

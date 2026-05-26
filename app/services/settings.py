@@ -36,6 +36,12 @@ def set_setting(db: Session, key: str, value: str) -> None:
         setting.value = value
 
 
+def delete_setting(db: Session, key: str) -> None:
+    setting = db.get(AppSetting, key)
+    if setting is not None:
+        db.delete(setting)
+
+
 def get_ai_agent(db: Session) -> str:
     return normalize_ai_agent(get_setting(db, AI_AGENT_SETTING_KEY, os.getenv("RESUME_PARSE_PROVIDER", "claude-cli")))
 

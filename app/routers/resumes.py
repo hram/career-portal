@@ -10,7 +10,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import selectinload
 
 from app.database import SessionLocal
-from app.models.models import GeneratedResume, Profile, ResumeTemplate
+from app.models.models import GeneratedResume, Profile, ResumeTemplate, SavedVacancy
 from app.services.ai_agent import AIAgentError, build_resume_prompt_preview, generate_resume
 from app.services.settings import get_ai_agent
 
@@ -44,12 +44,27 @@ def _load_roles(db, profile_id: int) -> list[ResumeTemplate]:
 @router.get("/generate")
 async def generate_page(request: Request):
     selected_template_id = _int_or_none(request.query_params.get("template_id"))
+    selected_vacancy_id = _int_or_none(request.query_params.get("vacancy_id"))
     with SessionLocal() as db:
         profile = get_profile(db)
         roles = _load_roles(db, profile.id)
         if selected_template_id is None and roles:
             selected_template_id = roles[0].id
         selected_agent = get_ai_agent(db)
+        values = {}
+        if selected_vacancy_id is not None:
+            vacancy = db.scalar(
+                select(SavedVacancy).where(
+                    SavedVacancy.id == selected_vacancy_id,
+                    SavedVacancy.profile_id == profile.id,
+                )
+            )
+            if vacancy is not None:
+                values = {
+                    "company_name": vacancy.company_name or "",
+                    "vacancy_url": vacancy.vacancy_url or "",
+                    "vacancy_text": vacancy.description_text or "",
+                }
 
         return templates.TemplateResponse(
             "generate.html",
@@ -59,8 +74,9 @@ async def generate_page(request: Request):
                 "roles": roles,
                 "selected_template_id": selected_template_id,
                 "selected_agent": selected_agent,
-                "values": {},
+                "values": values,
                 "flash_error": "Сначала создай хотя бы одну роль" if not roles else None,
+                "flash_success": "Вакансия hh.ru подставлена в форму" if values else None,
             },
         )
 
