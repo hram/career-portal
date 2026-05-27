@@ -223,6 +223,13 @@ def _claude_cli_error_message(completed: subprocess.CompletedProcess[str], raw_r
     return None
 
 
+def _error_tail(value: str, limit: int = 1200) -> str:
+    text = value.strip()
+    if len(text) <= limit:
+        return text
+    return f"...{text[-limit:]}"
+
+
 def _run_claude_json(prompt: str, *, allowed_dir: Path | None, timeout: int) -> dict:
     command = [
         CLAUDE_CLI_PATH,
@@ -351,12 +358,12 @@ def _run_codex_text(prompt: str, *, timeout: int) -> str:
     content = output_path.read_text(encoding="utf-8").strip() if output_path.exists() else ""
     output_path.unlink(missing_ok=True)
     if completed.returncode != 0:
-        error = completed.stderr.strip()[:500] or "без stderr"
+        error = _error_tail(completed.stderr or completed.stdout or "без stderr")
         raise ResumeParseError(f"Codex CLI завершился с кодом {completed.returncode}: {error}")
     if not content:
         content = completed.stdout.strip()
     if not content:
-        error = completed.stderr.strip()[:500] or "без stderr"
+        error = _error_tail(completed.stderr or "без stderr")
         raise ResumeParseError(f"Codex CLI не вернул ответ: {error}")
     return content
 
