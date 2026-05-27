@@ -213,6 +213,16 @@ def _extract_assistant_text(stdout: str) -> list[str]:
     return full_text
 
 
+def _claude_cli_error_message(completed: subprocess.CompletedProcess[str], raw_response: str = "") -> str | None:
+    combined_output = "\n".join(part for part in (raw_response, completed.stderr, completed.stdout) if part)
+    if "Not logged in" in combined_output or "Please run /login" in combined_output:
+        return "Claude CLI не авторизован: выполните claude /login или настройте ANTHROPIC_API_KEY в окружении"
+    if completed.returncode != 0:
+        error = (completed.stderr.strip() or raw_response.strip() or "без stderr")[:500]
+        return f"Claude CLI завершился с кодом {completed.returncode}: {error}"
+    return None
+
+
 def _run_claude_json(prompt: str, *, allowed_dir: Path | None, timeout: int) -> dict:
     command = [
         CLAUDE_CLI_PATH,
@@ -244,6 +254,9 @@ def _run_claude_json(prompt: str, *, allowed_dir: Path | None, timeout: int) -> 
 
     full_text = _extract_assistant_text(completed.stdout)
     raw_response = "".join(full_text).strip()
+    error_message = _claude_cli_error_message(completed, raw_response)
+    if error_message:
+        raise ResumeParseError(error_message)
     if not raw_response:
         raise ResumeParseError(completed.stderr.strip() or "Claude CLI не вернул ответ")
 
@@ -283,6 +296,9 @@ def _run_claude_text(prompt: str, *, allowed_dir: Path | None, timeout: int) -> 
         raise ResumeParseError(f"Claude CLI не ответил за {timeout} секунд") from exc
 
     raw_response = "".join(_extract_assistant_text(completed.stdout)).strip()
+    error_message = _claude_cli_error_message(completed, raw_response)
+    if error_message:
+        raise ResumeParseError(error_message)
     if not raw_response:
         raise ResumeParseError(completed.stderr.strip() or "Claude CLI не вернул ответ")
     return raw_response
