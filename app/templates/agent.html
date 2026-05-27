@@ -136,8 +136,12 @@
     });
 
     copyPromptButton?.addEventListener("click", async () => {
-      await navigator.clipboard.writeText(promptPreviewText.value);
-      flash("Промпт скопирован");
+      try {
+        await window.copyTextToClipboard(promptPreviewText.value);
+        flash("Промпт скопирован");
+      } catch (error) {
+        flash("Не удалось скопировать промпт", "error");
+      }
     });
 
     async function showAnalysisPrompt(button) {

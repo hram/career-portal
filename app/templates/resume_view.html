@@ -47,8 +47,12 @@
   <script>
     document.querySelector("[data-copy-resume]")?.addEventListener("click", async () => {
       const source = document.getElementById("resume-markdown-source");
-      await navigator.clipboard.writeText(source.value);
-      flash("Текст резюме скопирован");
+      try {
+        await window.copyTextToClipboard(source.value);
+        flash("Текст резюме скопирован");
+      } catch (error) {
+        flash("Не удалось скопировать текст резюме", "error");
+      }
     });
 
     document.querySelector("[data-delete-resume]")?.addEventListener("click", async () => {

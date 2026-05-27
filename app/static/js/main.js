@@ -14,6 +14,33 @@ function flash(message, type = "success") {
   }, 3000);
 }
 
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.top = "-9999px";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+
+  textarea.focus();
+  textarea.select();
+
+  try {
+    const copied = document.execCommand("copy");
+    if (!copied) {
+      throw new Error("Copy command was rejected");
+    }
+  } finally {
+    textarea.remove();
+  }
+}
+
 async function confirmDelete(url, name) {
   const confirmed = window.confirm(`Удалить "${name}"?`);
   if (!confirmed) {
@@ -30,6 +57,7 @@ async function confirmDelete(url, name) {
 }
 
 window.flash = flash;
+window.copyTextToClipboard = copyTextToClipboard;
 window.confirmDelete = confirmDelete;
 
 function getDragAfterElement(container, y, selector) {
