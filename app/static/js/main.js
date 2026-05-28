@@ -14,7 +14,14 @@ function flash(message, type = "success") {
   }, 3000);
 }
 
-async function copyTextToClipboard(text) {
+async function copyTextToClipboard(source) {
+  const sourceElement = source instanceof HTMLElement ? source : null;
+  const text = typeof source === "string"
+    ? source
+    : sourceElement && "value" in sourceElement
+      ? sourceElement.value
+      : sourceElement?.textContent || "";
+
   if (navigator.clipboard && window.isSecureContext) {
     await navigator.clipboard.writeText(text);
     return;
@@ -29,24 +36,49 @@ async function copyTextToClipboard(text) {
     }
   }
 
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.top = "-9999px";
-  textarea.style.left = "-9999px";
-  document.body.appendChild(textarea);
+  const canSelectSource =
+    sourceElement instanceof HTMLTextAreaElement ||
+    sourceElement instanceof HTMLInputElement;
+  const canUseSource =
+    canSelectSource &&
+    sourceElement.isConnected &&
+    sourceElement.getClientRects().length > 0;
 
-  textarea.focus();
-  textarea.select();
+  const copyFromElement = (element) => {
+    element.focus();
+    if ("select" in element) {
+      element.select();
+    }
+    if ("setSelectionRange" in element) {
+      element.setSelectionRange(0, text.length);
+    }
+    return document.execCommand("copy");
+  };
 
   try {
-    const copied = document.execCommand("copy");
+    const copied = canUseSource
+      ? copyFromElement(sourceElement)
+      : (() => {
+          const textarea = document.createElement("textarea");
+          textarea.value = text;
+          textarea.setAttribute("readonly", "");
+          textarea.style.position = "fixed";
+          textarea.style.top = "-9999px";
+          textarea.style.left = "-9999px";
+          document.body.appendChild(textarea);
+          textarea.focus();
+          textarea.select();
+          textarea.setSelectionRange(0, text.length);
+          try {
+            return document.execCommand("copy");
+          } finally {
+            textarea.remove();
+          }
+        })();
     if (!copied) {
       throw new Error("Copy command was rejected");
     }
   } finally {
-    textarea.remove();
     if (selection) {
       selection.removeAllRanges();
       selectedRanges.forEach((range) => selection.addRange(range));

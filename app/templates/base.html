@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/main.css') }}?v={{ request.app.state.asset_version }}">
   </head>
   <body>
     <aside class="sidebar">
@@ -84,7 +84,7 @@
       {% block content %}{% endblock %}
     </main>
 
-    <script src="{{ url_for('static', path='/js/main.js') }}"></script>
+    <script src="{{ url_for('static', path='/js/main.js') }}?v={{ request.app.state.asset_version }}"></script>
     {% block scripts %}{% endblock %}
   </body>
 </html>

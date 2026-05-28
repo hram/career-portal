@@ -249,7 +249,7 @@
 
     copyPromptButton?.addEventListener("click", async () => {
       try {
-        await window.copyTextToClipboard(promptPreviewText.value);
+        await window.copyTextToClipboard(promptPreviewText);
         flash("Промпт скопирован");
       } catch (error) {
         flash("Не удалось скопировать промпт", "error");
